@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>En busca del Cuy Dorado - Aplicación Oficial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header Principal -->
+  <header class="main-header">
+    <div class="header-pattern-top"></div>
+    <div class="header-content">
+      <div class="logo-badge">
+        <span class="logo-icon">🐹👑</span>
+        <div class="logo-titles">
+          <span class="game-subtitle">Juego de mesa interactivo peruano</span>
+          <h1 class="game-title">En busca del Cuy Dorado</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-sound-toggle" class="btn-icon" title="Sonido activado / desactivado">🔊</button>
+        <button id="btn-show-rules" class="btn-secondary-sm">📖 Reglas</button>
+        <a href="imprimir_tarjetas.html" target="_blank" class="btn-secondary-sm print-btn">🖨️ Tarjetas Imprimibles</a>
+        <button id="btn-restart-game" class="btn-danger-sm hidden">🔄 Nueva Partida</button>
+      </div>
+    </div>
+    <div class="header-pattern-bottom"></div>
+  </header>
+
+  <main class="main-container">
+
+    <!-- ================= PANTALLA 1: CONFIGURACIÓN / INICIO ================= -->
+    <section id="screen-setup" class="screen-view active">
+      <div class="setup-card">
+        <div class="card-hero">
+          <div class="hero-cuy-glow">
+            <div class="cuy-avatar-big">🐹✨</div>
+          </div>
+          <h2>¡Bienvenidos a la aventura!</h2>
+          <p class="hero-desc">
+            Reúne a tu equipo (2 a 4 jugadores), recorre el Perú, responde preguntas de cultura general, usa cartas de sabotaje y reúne las 3 pistas sagradas: <strong>Sol ☀️, Montaña ⛰️ y Río 🌊</strong> para alcanzar al Cuy Dorado.
+          </p>
+        </div>
+
+        <div id="resume-banner" class="resume-alert hidden">
+          <div class="resume-info">
+            <span class="alert-icon">💾</span>
+            <div>
+              <strong>Hay una partida guardada</strong>
+              <p id="resume-text">Continuar con los jugadores anteriores.</p>
+            </div>
+          </div>
+          <div class="resume-btns">
+            <button id="btn-resume-game" class="btn-primary">▶ Reanudar</button>
+            <button id="btn-dismiss-resume" class="btn-secondary">Descartar</button>
+          </div>
+        </div>
+
+        <div class="setup-players-section">
+          <div class="section-heading">
+            <span class="step-num">1</span>
+            <h3>Selecciona la cantidad de jugadores</h3>
+          </div>
+          <div class="player-count-selector">
+            <button type="button" class="btn-count" data-count="2">2 Jugadores</button>
+            <button type="button" class="btn-count active" data-count="3">3 Jugadores</button>
+            <button type="button" class="btn-count" data-count="4">4 Jugadores</button>
+          </div>
+
+          <div class="section-heading mt-4">
+            <span class="step-num">2</span>
+            <h3>Nombres y Fichas 3D</h3>
+          </div>
+          <p class="hint-text">Cada jugador debe tener una ficha única con su color característico del tablero.</p>
+
+          <form id="setup-form" class="players-grid">
+            <!-- Renderizado dinámico desde JS con 2, 3 o 4 jugadores -->
+          </form>
+
+          <div class="setup-start-wrapper">
+            <button type="button" id="btn-start-game" class="btn-start">
+              <span>🚀 ¡Comenzar Partida!</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PANTALLA 2: PARTIDA EN CURSO ================= -->
+    <section id="screen-game" class="screen-view hidden">
+      <!-- Banner de Turno Activo -->
+      <div class="turn-banner" id="turn-banner">
+        <div class="turn-player-info">
+          <div class="player-badge-current" id="current-player-avatar">🦅</div>
+          <div class="turn-titles">
+            <span class="turn-label">TURNO ACTUAL</span>
+            <h2 class="current-player-name" id="current-player-name">Jugador 1</h2>
+            <span class="current-player-token" id="current-player-token">Cóndor (Azul)</span>
+          </div>
+        </div>
+        <div class="turn-stats">
+          <div class="pistas-summary-badge" title="Pistas sagradas conseguidas">
+            <span class="badge-title">Pistas Sagradas</span>
+            <div class="pistas-icons-row" id="current-player-pistas-icons">
+              <span class="pista-chip missing" data-pista="Sol">☀️ Sol</span>
+              <span class="pista-chip missing" data-pista="Montana">⛰️ Montaña</span>
+              <span class="pista-chip missing" data-pista="Rio">🌊 Río</span>
+            </div>
+          </div>
+          <div class="cards-summary-badge" title="Cartas de Efecto en Mano">
+            <span class="badge-title">Cartas en Mano (<span id="current-player-cards-count">0</span>/2)</span>
+            <div class="cards-icons-row" id="current-player-cards-icons">
+              <span class="empty-card-slot">Vacío</span>
+              <span class="empty-card-slot">Vacío</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tablero de Jugadores (Resumen General) -->
+      <div class="game-dashboard-layout">
+        <!-- Panel Izquierdo: Acciones del Turno -->
+        <div class="actions-panel">
+          <h3 class="panel-title">Acciones del Turno</h3>
+          
+          <div class="action-buttons-grid">
+            <!-- Acción: Casilla Pregunta -->
+            <button id="btn-action-pregunta" class="action-btn btn-action-pregunta">
+              <div class="action-btn-icon">❓</div>
+              <div class="action-btn-text">
+                <strong>Casilla Pregunta</strong>
+                <small>Responde una trivia peruana para ganar una pista</small>
+              </div>
+            </button>
+
+            <!-- Acción: Casilla Sorpresa -->
+            <button id="btn-action-sorpresa" class="action-btn btn-action-sorpresa">
+              <div class="action-btn-icon">🎁</div>
+              <div class="action-btn-text">
+                <strong>Casilla Sorpresa</strong>
+                <small>Sortea una carta de efecto disponible del mazo</small>
+              </div>
+            </button>
+
+            <!-- Acción: Usar Carta de Efecto -->
+            <button id="btn-action-usar-carta" class="action-btn btn-action-carta">
+              <div class="action-btn-icon">⚡</div>
+              <div class="action-btn-text">
+                <strong>Usar Carta de Efecto</strong>
+                <small>Juega una carta de comida o sabotaje de tu inventario</small>
+              </div>
+            </button>
+
+            <!-- Acción: Tirar Dado Virtual (Opcional si no tienen dado físico) -->
+            <button id="btn-action-dado" class="action-btn btn-action-dado">
+              <div class="action-btn-icon">🎲</div>
+              <div class="action-btn-text">
+                <strong>Tirar Dado Virtual</strong>
+                <small>Si no tienes un dado físico a la mano (1 a 6)</small>
+              </div>
+            </button>
+          </div>
+
+          <!-- Botón de Victoria: ¡Llegué al Cuy Dorado! -->
+          <div class="gold-cuy-claim-wrapper">
+            <button id="btn-claim-cuy" class="btn-claim-cuy">
+              <span class="crown-icon">👑</span>
+              <span>¡Llegué al Cuy Dorado!</span>
+              <span class="cuy-icon">🐹</span>
+            </button>
+            <p class="claim-info">Requiere llegar al centro con las 3 pistas (Sol, Montaña y Río).</p>
+          </div>
+
+          <!-- Botón Terminar Turno -->
+          <div class="end-turn-wrapper">
+            <button id="btn-end-turn" class="btn-end-turn">
+              <span>Siguiente Jugador</span>
+              <span class="arrow-icon">➔</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Panel Derecho: Estado de Todos los Jugadores y Mazo -->
+        <div class="players-status-panel">
+          <div class="panel-header-flex">
+            <h3 class="panel-title">Estado de los Exploradores</h3>
+            <span class="deck-counter" id="deck-counter" title="Cartas de efecto restantes en el mazo">
+              Mazo de efectos: <strong>14/14</strong>
+            </span>
+          </div>
+
+          <div class="players-cards-container" id="players-status-cards">
+            <!-- Se llena dinámicamente con las tarjetas de cada jugador -->
+          </div>
+
+          <!-- Historial de Eventos Recientes -->
+          <div class="game-log-box">
+            <div class="log-header">
+              <span>📜 Registro de Aventuras</span>
+              <button id="btn-clear-log" class="btn-text">Limpiar</button>
+            </div>
+            <div class="log-entries" id="game-log-entries">
+              <div class="log-item info">¡Bienvenidos a "En busca del Cuy Dorado"! La partida ha comenzado.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MODAL: CASILLA PREGUNTA ================= -->
+    <div id="modal-pregunta" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header header-pregunta">
+          <span class="modal-tag">🏛️ Trivia del Perú</span>
+          <button class="modal-close" data-close="modal-pregunta">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="question-header-info">
+            <span class="q-turn-for" id="q-player-name">Turno de Jugador 1</span>
+            <span class="q-category-badge" id="q-category">Geografía e Historia</span>
+          </div>
+          
+          <h3 class="question-text" id="q-question-text">¿En qué región del Perú se encuentra Machu Picchu?</h3>
+
+          <div class="options-container" id="q-options-container">
+            <!-- Opciones A, B, C -->
+          </div>
+
+          <!-- Mensaje de Feedback -->
+          <div id="q-feedback" class="feedback-banner hidden">
+            <div class="feedback-icon" id="q-feedback-icon">🎉</div>
+            <div class="feedback-text">
+              <h4 id="q-feedback-title">¡Respuesta Correcta!</h4>
+              <p id="q-feedback-msg">Elige una de las pistas que te faltan.</p>
+            </div>
+          </div>
+
+          <!-- Selector de Pista al Acertar -->
+          <div id="q-pistas-selector" class="pistas-pick-area hidden">
+            <p class="pick-instruction">Selecciona la pista que deseas reclamar:</p>
+            <div class="pistas-buttons-grid" id="q-pistas-buttons">
+              <!-- Botones de Sol, Montaña, Río según falten -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-q-confirm" class="btn-primary hidden">Aceptar y Continuar</button>
+          <button id="btn-q-close" class="btn-secondary" data-close="modal-pregunta">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: CASILLA SORPRESA (SORTEO DE CARTA) ================= -->
+    <div id="modal-sorpresa" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header header-sorpresa">
+          <span class="modal-tag">🎁 Casilla Sorpresa</span>
+          <button class="modal-close" data-close="modal-sorpresa">&times;</button>
+        </div>
+        <div class="modal-body text-center">
+          <p class="sorpresa-subtitle">¡Has caído en una casilla Sorpresa! Descubre qué carta de efecto has conseguido:</p>
+
+          <div class="card-draw-display" id="card-draw-display">
+            <div class="effect-card-preview" id="draw-card-preview">
+              <div class="card-art" id="draw-card-art">🍲</div>
+              <h3 class="card-name" id="draw-card-name">Ceviche</h3>
+              <p class="card-effect-desc" id="draw-card-desc">Lanza el dado y realiza un movimiento extra.</p>
+              <div class="card-physical-reminder">
+                📌 Toma la tarjeta física: <strong id="draw-card-reminder">Ceviche</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Caso de descarte si ya tiene 2 cartas -->
+          <div id="sorpresa-discard-section" class="discard-alert hidden">
+            <p class="warning-text">⚠️ <strong>Límite de cartas alcanzado (Máx 2):</strong> Ya tienes 2 cartas de efectos en mano. Debes elegir cuál conservar o descartar:</p>
+            <div class="discard-options-grid" id="discard-options-grid">
+              <!-- Botones para elegir cuál descartar -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-sorpresa-accept" class="btn-primary">Guardar en Inventario</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: USAR CARTA DE EFECTO ================= -->
+    <div id="modal-usar-carta" class="modal-overlay hidden">
+      <div class="modal-card modal-lg">
+        <div class="modal-header header-usar">
+          <span class="modal-tag">⚡ Usar Carta de Efecto</span>
+          <button class="modal-close" data-close="modal-usar-carta">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="usar-carta-list-view">
+            <p class="hint-text">Selecciona la carta que deseas jugar en este momento:</p>
+            <div class="my-cards-selection-grid" id="my-cards-selection-grid">
+              <!-- Tarjetas del jugador activo -->
+            </div>
+          </div>
+
+          <!-- Subpantalla de Selección de Rival / Pista (Para Robar Pista, Ají Picante, Desvío) -->
+          <div id="usar-carta-target-view" class="hidden">
+            <div class="target-card-info" id="target-card-info">
+              <!-- Información de la carta seleccionada -->
+            </div>
+
+            <!-- Paso 1: Elegir Rival -->
+            <div id="target-rival-step" class="target-step">
+              <p class="step-label">1. Selecciona al jugador rival objetivo:</p>
+              <div class="rivals-buttons-grid" id="rivals-buttons-grid">
+                <!-- Botones de rivales -->
+              </div>
+            </div>
+
+            <!-- Paso 2: Elegir Pista a Robar (si la carta es Roba una pista) -->
+            <div id="target-pista-step" class="target-step hidden">
+              <p class="step-label">2. Selecciona la pista del rival que te falta y deseas robar:</p>
+              <div class="pistas-to-steal-grid" id="pistas-to-steal-grid">
+                <!-- Botones de pistas que el rival tiene y a ti te faltan -->
+              </div>
+            </div>
+
+            <!-- Paso 3: Pregunta de Defensa Mazamorra Morada -->
+            <div id="target-defense-step" class="target-step hidden defense-box">
+              <div class="defense-badge">🛡️ ¡Alerta de Ataque!</div>
+              <p id="defense-query-text">
+                El rival tiene una carta de <strong>Mazamorra Morada</strong>. ¿Desea usarla para cancelar este efecto?
+              </p>
+              <div class="defense-buttons">
+                <button id="btn-defense-use" class="btn-purple">🛡️ Sí, usar Mazamorra (Cancela el ataque)</button>
+                <button id="btn-defense-skip" class="btn-secondary">No usar (Recibe el efecto)</button>
+              </div>
+            </div>
+
+            <div class="target-action-btns mt-3">
+              <button id="btn-target-cancel" class="btn-secondary">Cancelar</button>
+              <button id="btn-target-confirm" class="btn-primary hidden">Aplicar Efecto</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" id="modal-usar-footer">
+          <button class="btn-secondary" data-close="modal-usar-carta">Volver</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: DADO VIRTUAL ================= -->
+    <div id="modal-dado" class="modal-overlay hidden">
+      <div class="modal-card modal-sm text-center">
+        <div class="modal-header header-dado">
+          <span class="modal-tag">🎲 Dado de los Andes</span>
+          <button class="modal-close" data-close="modal-dado">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="dice-wrapper">
+            <div class="dice-face" id="dice-display">🎲</div>
+          </div>
+          <h3 id="dice-result-text" class="dice-result">¡Lanza el dado!</h3>
+          <p class="dice-instruction">Avanza ese número de casillas en el tablero físico con tu ficha.</p>
+
+          <div id="inca-kola-reroll-prompt" class="inca-box hidden">
+            <span>🥤 Tienes Inca Kola disponible</span>
+            <button id="btn-use-inca-kola-dice" class="btn-yellow-sm">¡Usar Inca Kola y Volver a Tirar!</button>
+          </div>
+        </div>
+        <div class="modal-footer justify-center">
+          <button id="btn-roll-dice" class="btn-primary">🎲 ¡Lanzar Dado!</button>
+          <button class="btn-secondary" data-close="modal-dado">Listo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: VICTORIA / CUY DORADO ================= -->
+    <div id="modal-victoria" class="modal-overlay hidden">
+      <div class="modal-card modal-victory text-center">
+        <div class="confetti-container" id="confetti-container"></div>
+        <div class="victory-cuy-huge">🐹👑✨</div>
+        <h2 class="victory-title">¡EL CUY DORADO HA SIDO ENCONTRADO!</h2>
+        <h3 class="winner-name-announce" id="winner-name-announce">¡Ana es la Gran Campeona!</h3>
+        <p class="victory-desc" id="winner-details-announce">
+          Ha reunido el Sol ☀️, la Montaña ⛰️ y el Río 🌊 y llegó victoriosa al corazón del Tahuantinsuyo.
+        </p>
+
+        <div class="victory-summary-box" id="victory-summary-box">
+          <!-- Resumen de la partida -->
+        </div>
+
+        <div class="modal-footer justify-center">
+          <button id="btn-new-game-victory" class="btn-primary">🎉 Nueva Partida</button>
+          <button class="btn-secondary" data-close="modal-victoria">Ver Tablero</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL: REGLAS DEL JUEGO ================= -->
+    <div id="modal-reglas" class="modal-overlay hidden">
+      <div class="modal-card modal-lg">
+        <div class="modal-header header-reglas">
+          <span class="modal-tag">📖 Guía y Reglamento Oficial</span>
+          <button class="modal-close" data-close="modal-reglas">&times;</button>
+        </div>
+        <div class="modal-body rules-content">
+          <h4>🎯 Objetivo del Juego</h4>
+          <p>
+            Reunir las 3 pistas sagradas del Perú: <strong>Sol ☀️</strong>, <strong>Montaña ⛰️</strong> y <strong>Río 🌊</strong>, y ser el primer jugador en llegar al centro del tablero para coronarse junto al <strong>Cuy Dorado</strong>.
+          </p>
+
+          <h4>🎲 Secuencia de un Turno</h4>
+          <ol>
+            <li><strong>Inicio de turno (opcional):</strong> Puedes jugar una carta de efecto (Ceviche, Pollo a la brasa, Roba una pista, etc.).</li>
+            <li><strong>Lanzamiento y movimiento:</strong> Lanza el dado físico (o el virtual) y avanza tu ficha por los caminos. En los cruces puedes elegir tu ruta.</li>
+            <li><strong>Resolver la casilla donde caes:</strong>
+              <ul>
+                <li><strong>❓ Casilla Pregunta:</strong> Responde en la web. Si aciertas, reclamas una pista que te falte.</li>
+                <li><strong>🎁 Casilla Sorpresa:</strong> La web sortea una carta de efecto disponible del mazo y tomas su tarjeta física.</li>
+                <li><strong>⚪ Casilla Normal:</strong> Termina tu turno sin efecto adicional.</li>
+              </ul>
+            </li>
+            <li><strong>Finalizar turno:</strong> Pulsa el botón "Siguiente Jugador" para dar el pase al siguiente explorador.</li>
+          </ol>
+
+          <h4>🃏 Cartas de Efecto y sus Poderes</h4>
+          <div class="rules-cards-table-wrapper">
+            <table class="rules-table">
+              <thead>
+                <tr>
+                  <th>Carta</th>
+                  <th>Tipo</th>
+                  <th>Efecto oficial</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>🍲 Ceviche</strong></td>
+                  <td>Movimiento</td>
+                  <td>Lanza el dado y realiza un movimiento extra (no activa casilla).</td>
+                </tr>
+                <tr>
+                  <td><strong>🍗 Pollo a la brasa</strong></td>
+                  <td>Sabiduría</td>
+                  <td>Responde una pregunta adicional para intentar obtener otra pista.</td>
+                </tr>
+                <tr>
+                  <td><strong>🥤 Inca Kola</strong></td>
+                  <td>Suerte</td>
+                  <td>Repite tu lanzamiento de dado y utiliza el nuevo resultado.</td>
+                </tr>
+                <tr>
+                  <td><strong>🥷 Roba una pista</strong></td>
+                  <td>Ataque</td>
+                  <td>Toma de un rival una pista que te falte (el rival no puede repetir).</td>
+                </tr>
+                <tr>
+                  <td><strong>🌶️ Ají picante</strong></td>
+                  <td>Sabotaje</td>
+                  <td>Haz retroceder dos casillas a un rival.</td>
+                </tr>
+                <tr>
+                  <td><strong>🔀 Desvío</strong></td>
+                  <td>Estrategia</td>
+                  <td>Intercambia tu posición con otro jugador que esté en los caminos.</td>
+                </tr>
+                <tr>
+                  <td><strong>🥣 Mazamorra morada</strong></td>
+                  <td>Defensa</td>
+                  <td>Cancela un robo o sabotaje contra ti (Roba una pista, Ají picante o Desvío).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4>⚠️ Reglas Importantes de Cartas y Pistas</h4>
+          <ul>
+            <li><strong>Límite de mano:</strong> Cada jugador puede guardar hasta <strong>2 cartas de efectos</strong> como máximo. Si recibes una tercera, debes descartar una.</li>
+            <li><strong>Sin pistas repetidas:</strong> Solo puedes poseer una copia de cada pista (1 Sol, 1 Montaña, 1 Río).</li>
+            <li><strong>Reacción defensiva:</strong> La <em>Mazamorra morada</em> se juega inmediatamente cuando un rival intenta robarte o sabotearte, anulando la acción.</li>
+            <li><strong>Llegada al centro:</strong> No se requiere número exacto de dado para entrar a la plaza central del Cuy Dorado, ¡pero debes conservar las 3 pistas sagradas!</li>
+          </ul>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" data-close="modal-reglas">Entendido</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <span>En busca del Cuy Dorado &bull; Juego de Mesa Interactivo con Aplicación Web</span>
+      <span>Diseñado para educación, diversión y cultura peruana 🇵🇪</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
