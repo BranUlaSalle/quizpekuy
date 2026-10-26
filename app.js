@@ -1,481 +1,318 @@
 /**
- * EN BUSCA DEL CUY DORADO - LÓGICA OFICIAL DEL JUEGO
- * Desarrollado con JavaScript vanilla, Web Audio API y LocalStorage
+ * EN BUSCA DEL CUY DORADO - LÓGICA OFICIAL
+ * 6 Pantallas: Inicio, Partida, Pregunta, Sorpresa, Uso de cartas y Final
  */
 
 // ==========================================
-// CONFIGURACIÓN Y CONSTANTES
+// CONSTANTES Y CONFIGURACIÓN
 // ==========================================
 
-const STORAGE_KEY = 'cuy_dorado_game_state_v1';
+const STORAGE_KEY = 'cuy_dorado_game_state_v2';
 
-// Catálogo de Fichas Oficiales
-const TOKENS_CATALOG = [
-  { id: 'condor', name: 'Cóndor', icon: '🦅', colorName: 'Negro / Violeta', colorHex: '#4c1d95', borderHex: '#7c3aed' },
-  { id: 'mototaxi', name: 'Mototaxi', icon: '🛺', colorName: 'Rojo Carmín', colorHex: '#be123c', borderHex: '#e11d48' },
-  { id: 'llama', name: 'Llama', icon: '🦙', colorName: 'Amarillo Dorado', colorHex: '#d97706', borderHex: '#f59e0b' },
-  { id: 'combi', name: 'Combi', icon: '🚐', colorName: 'Azul Marino', colorHex: '#1d4ed8', borderHex: '#3b82f6' }
+const FICHAS_CATALOG = [
+  { id: 'condor', name: 'Cóndor', icon: '🦅', color: 'Azul', hex: '#1d4ed8' },
+  { id: 'mototaxi', name: 'Mototaxi', icon: '🛺', color: 'Rojo', hex: '#be123c' },
+  { id: 'llama', name: 'Llama', icon: '🦙', color: 'Amarillo', hex: '#d97706' },
+  { id: 'combi', name: 'Combi', icon: '🚐', color: 'Celeste', hex: '#0284c7' }
 ];
 
-// Pistas Sagradas
-const PISTAS_KEYS = ['Sol', 'Montana', 'Rio'];
 const PISTAS_INFO = {
-  Sol: { name: 'Sol', icon: '☀️', desc: 'El Inti sagrado de los Andes' },
-  Montana: { name: 'Montaña', icon: '⛰️', desc: 'Las cumbres de los Apus protectores' },
-  Rio: { name: 'Río', icon: '🌊', desc: 'Las aguas sagradas del Amazonas y Vilcanota' }
+  Sol: { name: 'Sol', icon: '☀️' },
+  Montana: { name: 'Montaña', icon: '⛰️' },
+  Rio: { name: 'Río', icon: '🌊' }
 };
 
-// Catálogo de Efectos (7 tipos, 2 copias cada uno = 14 cartas en total)
-const EFFECTS_CATALOG = {
+// 14 Tarjetas de Efectos (2 copias de cada uno de los 7 efectos)
+const EFECTOS_CATALOG = {
   ceviche: {
     id: 'ceviche',
     name: 'Ceviche',
     icon: '🍲',
-    type: 'movimiento',
     copies: 2,
-    desc: 'Lanza el dado y realiza un movimiento extra (no activa casilla).',
-    requiresTarget: false
+    desc: 'Lanza el dado y realiza un movimiento extra (no activa casilla).'
   },
   pollo_brasa: {
     id: 'pollo_brasa',
     name: 'Pollo a la brasa',
     icon: '🍗',
-    type: 'sabiduria',
     copies: 2,
-    desc: 'Responde una pregunta adicional para intentar obtener una pista.',
-    requiresTarget: false
+    desc: 'Responde una pregunta adicional para intentar obtener una pista.'
   },
   mazamorra: {
     id: 'mazamorra',
     name: 'Mazamorra morada',
     icon: '🥣',
-    type: 'defensa',
     copies: 2,
-    desc: 'Cancela un robo o sabotaje contra ti (se usa como reacción).',
-    requiresTarget: false,
-    isPassiveReaction: true
+    desc: 'Cancela un robo o sabotaje contra ti (se activa cuando alguien te ataca).'
   },
   inca_kola: {
     id: 'inca_kola',
     name: 'Inca Kola',
     icon: '🥤',
-    type: 'suerte',
     copies: 2,
-    desc: 'Repite tu lanzamiento y utiliza el nuevo resultado.',
-    requiresTarget: false
+    desc: 'Repite tu lanzamiento de dado y utiliza el nuevo resultado.'
   },
   roba_pista: {
     id: 'roba_pista',
     name: 'Roba una pista',
     icon: '🥷',
-    type: 'ataque',
     copies: 2,
-    desc: 'Toma de un rival una pista que te falte.',
-    requiresTarget: true,
-    targetType: 'pista_rival'
+    desc: 'Toma de un rival una pista que te falte (el rival puede bloquear con Mazamorra).'
   },
   aji_picante: {
     id: 'aji_picante',
     name: 'Ají picante',
     icon: '🌶️',
-    type: 'sabotaje',
     copies: 2,
-    desc: 'Haz retroceder dos casillas a un rival.',
-    requiresTarget: true,
-    targetType: 'rival_solo'
+    desc: 'Haz retroceder dos casillas a un rival en el tablero.'
   },
   desvio: {
     id: 'desvio',
     name: 'Desvío',
     icon: '🔀',
-    type: 'estrategia',
     copies: 2,
-    desc: 'Intercambia tu posición con otro jugador que esté en los caminos.',
-    requiresTarget: true,
-    targetType: 'rival_solo'
+    desc: 'Intercambia tu posición con otro jugador que esté en los caminos.'
   }
 };
 
-// Banco de Preguntas sobre el Perú (Trivia Cultural, Geográfica e Histórica)
-const QUESTIONS_BANK = [
+// Exactamente 15 Preguntas con sus respuestas correctas sobre el Perú
+const BANCO_15_PREGUNTAS = [
   {
     id: 1,
-    category: 'Geografía',
-    question: '¿En qué región natural del Perú se encuentra la ciudadela de Machu Picchu?',
-    options: ['Costa', 'Sierra', 'Selva'],
-    correct: 1 // Sierra (Ceja de Selva/Sierra de Cusco)
+    categoria: 'Geografía',
+    enunciado: '¿En qué región natural del Perú se encuentra la ciudadela de Machu Picchu?',
+    opciones: ['Costa', 'Sierra', 'Selva'],
+    correcta: 1 // Sierra (Ceja de Selva/Sierra Cusco)
   },
   {
     id: 2,
-    category: 'Cultura e Historia',
-    question: '¿Cuál era la capital principal del Imperio Inca (Tahuantinsuyo)?',
-    options: ['Cusco', 'Arequipa', 'Lima'],
-    correct: 0
+    categoria: 'Historia',
+    enunciado: '¿Cuál era la capital principal del Imperio Inca (Tahuantinsuyo)?',
+    opciones: ['Cusco', 'Lima', 'Arequipa'],
+    correcta: 0 // Cusco
   },
   {
     id: 3,
-    category: 'Geografía',
-    question: '¿Cuál es el lago navegable más alto del mundo, compartido entre Perú y Bolivia?',
-    options: ['Lago Junín', 'Lago Titicaca', 'Laguna de Llanganuco'],
-    correct: 1
+    categoria: 'Geografía',
+    enunciado: '¿Cuál es el lago navegable más alto del mundo ubicado en el Perú?',
+    opciones: ['Lago Junín', 'Lago Titicaca', 'Laguna Parón'],
+    correcta: 1 // Lago Titicaca
   },
   {
     id: 4,
-    category: 'Gastronomía',
-    question: '¿Cuál es el plato bandera del Perú preparado tradicionalmente a base de pescado crudo, limón, cebolla y ají?',
-    options: ['Ceviche', 'Lomo saltado', 'Ají de gallina'],
-    correct: 0
+    categoria: 'Gastronomía',
+    enunciado: '¿Cuál es el plato bandera del Perú preparado a base de pescado crudo, limón, cebolla y ají?',
+    opciones: ['Ceviche', 'Lomo saltado', 'Causa limeña'],
+    correcta: 0 // Ceviche
   },
   {
     id: 5,
-    category: 'Fauna Peruana',
-    question: '¿Cuál es el ave nacional del Perú, conocida por su brillante plumaje anaranjado y cresta?',
-    options: ['El Cóndor Andino', 'El Gallito de las Rocas', 'El Colibrí Maravilloso'],
-    correct: 1
+    categoria: 'Fauna Peruana',
+    enunciado: '¿Cuál es el ave nacional del Perú de plumaje rojizo anaranjado que habita en los bosques de neblina?',
+    opciones: ['Gallito de las Rocas', 'Cóndor Andino', 'Picaflor Gigante'],
+    correcta: 0 // Gallito de las Rocas
   },
   {
     id: 6,
-    category: 'Fauna y Símbolos',
-    question: '¿Qué animal autóctono aparece en el Escudo Nacional representando el reino animal del Perú?',
-    options: ['La Vicuña', 'La Llama', 'La Alpaca'],
-    correct: 0
+    categoria: 'Símbolos Patrios',
+    enunciado: '¿Qué animal autóctono representa al reino animal en el Escudo Nacional del Perú?',
+    opciones: ['La Vicuña', 'La Llama', 'La Alpaca'],
+    correcta: 0 // La Vicuña
   },
   {
     id: 7,
-    category: 'Geografía y Selva',
-    question: '¿Cuál es el río más caudaloso y largo del mundo que nace en las cumbres nevadas del Perú?',
-    options: ['Río Ucayali', 'Río Amazonas', 'Río Marañón'],
-    correct: 1
+    categoria: 'Geografía',
+    enunciado: '¿Cuál es el río más caudaloso y largo del mundo que nace en las cumbres nevadas del Perú?',
+    opciones: ['Río Amazonas', 'Río Ucayali', 'Río Marañón'],
+    correcta: 0 // Río Amazonas
   },
   {
     id: 8,
-    category: 'Arqueología',
-    question: '¿En qué departamento del Perú se encuentran los misteriosos geoglifos gigantes conocidos como las Líneas de Nazca?',
-    options: ['Ica', 'Arequipa', 'Moquegua'],
-    correct: 0
+    categoria: 'Arqueología',
+    enunciado: '¿En qué departamento del Perú se encuentran los misteriosos geoglifos de las Líneas de Nazca?',
+    opciones: ['Ica', 'Ayacucho', 'Tacna'],
+    correcta: 0 // Ica
   },
   {
     id: 9,
-    category: 'Flora y Recursos',
-    question: '¿Qué árbol medicinal emblemático figura en el Escudo Nacional del Perú?',
-    options: ['El Árbol de la Quina', 'El Queñual', 'El Algarrobo'],
-    correct: 0
+    categoria: 'Símbolos Patrios',
+    enunciado: '¿Qué árbol medicinal emblemático figura en el Escudo Nacional del Perú?',
+    opciones: ['El Árbol de la Quina', 'El Eucalipto', 'El Queñual'],
+    correcta: 0 // El Árbol de la Quina
   },
   {
     id: 10,
-    category: 'Ciudades del Perú',
-    question: '¿A qué hermosa ciudad peruana se le conoce como la "Ciudad Blanca" debido a sus construcciones de sillar volcánico?',
-    options: ['Arequipa', 'Ayacucho', 'Trujillo'],
-    correct: 0
+    categoria: 'Ciudades del Perú',
+    enunciado: '¿A qué ciudad del Perú se le conoce como la "Ciudad Blanca" por sus casonas de sillar?',
+    opciones: ['Arequipa', 'Huancayo', 'Trujillo'],
+    correcta: 0 // Arequipa
   },
   {
     id: 11,
-    category: 'Gastronomía y Tradición',
-    question: '¿De qué tubérculo milenario es el Perú el centro de origen y cuenta con más de 3,000 variedades nativas?',
-    options: ['La Yuca', 'La Papa', 'El Camote'],
-    correct: 1
+    categoria: 'Agricultura y Tradición',
+    enunciado: '¿De qué tubérculo milenario es el Perú centro de origen con más de 3,000 variedades nativas?',
+    opciones: ['La Papa', 'La Yuca', 'El Camote'],
+    correcta: 0 // La Papa
   },
   {
     id: 12,
-    category: 'Historia y Arqueología',
-    question: '¿Cómo se llama la civilización más antigua de América, ubicada en el valle de Supe al norte de Lima?',
-    options: ['Caral', 'Chavín', 'Moche'],
-    correct: 0
+    categoria: 'Historia',
+    enunciado: '¿Cómo se llama la civilización más antigua de América ubicada en el valle de Supe, Perú?',
+    opciones: ['Caral', 'Chavín', 'Wari'],
+    correcta: 0 // Caral
   },
   {
     id: 13,
-    category: 'Tradición y Danza',
-    question: '¿Cuál es la danza tradicional de la costa peruana caracterizada por el elegante movimiento de pañuelos y zapateo?',
-    options: ['La Marinera', 'El Huaylas', 'La Diablada'],
-    correct: 0
+    categoria: 'Danza y Tradición',
+    enunciado: '¿Cuál es la elegante danza de la costa peruana que se baila con pañuelos al ritmo de guitarra y cajón?',
+    opciones: ['La Marinera', 'El Festejo', 'El Huaylas'],
+    correcta: 0 // La Marinera
   },
   {
     id: 14,
-    category: 'Geografía Andina',
-    question: '¿Cuál es el nevado más alto del Perú con 6,768 metros sobre el nivel del mar?',
-    options: ['Alpamayo', 'Huascarán', 'Yerupajá'],
-    correct: 1
+    categoria: 'Geografía Andina',
+    enunciado: '¿Cuál es el nevado más alto del Perú con 6,768 metros sobre el nivel del mar?',
+    opciones: ['Huascarán', 'Alpamayo', 'Yerupajá'],
+    correcta: 0 // Huascarán
   },
   {
     id: 15,
-    category: 'Cultura Inca',
-    question: '¿Qué nombre recibían los rápidos mensajeros corredores que recorrían los caminos del Inca (Qhapaq Ñan)?',
-    options: ['Chasquis', 'Curacas', 'Mitimaes'],
-    correct: 0
-  },
-  {
-    id: 16,
-    category: 'Fauna de la Selva',
-    question: '¿Qué gran roedor andino y mascota milenaria de los Andes da nombre a nuestro juego?',
-    options: ['El Cuy (Cobayo)', 'La Vizcacha', 'El Ronsoco'],
-    correct: 0
-  },
-  {
-    id: 17,
-    category: 'Cultura y Fiestas',
-    question: '¿En qué mes y en qué fecha se celebra el Inti Raymi (Fiesta del Sol) en la fortaleza de Sacsayhuamán?',
-    options: ['24 de Junio', '28 de Julio', '1 de Enero'],
-    correct: 0
-  },
-  {
-    id: 18,
-    category: 'Gastronomía',
-    question: '¿Qué postre morado tradicional de Lima se prepara típicamente en octubre junto al arroz con leche?',
-    options: ['Mazamorra morada', 'Picarones', 'Suspiro a la limeña'],
-    correct: 0
-  },
-  {
-    id: 19,
-    category: 'Arqueología',
-    question: '¿En qué departamento se descubrieron las majestuosas tumbas del Señor de Sipán?',
-    options: ['Lambayeque', 'La Libertad', 'Piura'],
-    correct: 0
-  },
-  {
-    id: 20,
-    category: 'Geografía del Perú',
-    question: '¿Cuál es el cañón más profundo de Arequipa donde se suele avistar el vuelo majestuoso del Cóndor?',
-    options: ['Cañón del Colca', 'Cañón del Pato', 'Cañón de Tinajani'],
-    correct: 0
+    categoria: 'Cultura Inca',
+    enunciado: '¿Cómo se llamaban los corredores mensajeros que recorrían los caminos del Inca (Qhapaq Ñan)?',
+    opciones: ['Chasquis', 'Curacas', 'Mitimaes'],
+    correcta: 0 // Chasquis
   }
 ];
 
 // ==========================================
-// ESTADO GLOBAL DE LA PARTIDA
+// ESTADO DE LA PARTIDA
 // ==========================================
 
-let gameState = {
-  isStarted: false,
-  isFinished: false,
-  winner: null,
-  activePlayerIndex: 0,
-  players: [],
-  // Mazo de efectos: lista de ids de cartas disponibles para sortear
-  effectDeck: [],
-  // Preguntas ya usadas en esta partida para no repetir
-  usedQuestionsIds: [],
-  // Historial de eventos
-  logs: []
+let estadoJuego = {
+  iniciada: false,
+  finalizada: false,
+  jugadorActivoIdx: 0,
+  jugadores: [],
+  mazoEfectos: [],
+  preguntasUsadas: [],
+  registroLogs: []
 };
 
 // ==========================================
-// SISTEMA DE AUDIO (Web Audio API)
+// CONTROL DE PANTALLAS (VISTAS)
 // ==========================================
 
-let soundEnabled = true;
-let audioCtx = null;
+const PANTALLAS = [
+  'pantalla-inicio',
+  'pantalla-partida',
+  'pantalla-pregunta',
+  'pantalla-sorpresa',
+  'pantalla-uso-cartas',
+  'pantalla-final'
+];
 
-function getAudioContext() {
-  if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (AudioContextClass) {
-      audioCtx = new AudioContextClass();
-    }
-  }
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  return audioCtx;
-}
-
-function playSound(type) {
-  if (!soundEnabled) return;
-  try {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === 'click') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, now);
-      osc.frequency.exponentialRampToValueAtTime(600, now + 0.05);
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-      osc.start(now);
-      osc.stop(now + 0.05);
-    } else if (type === 'correct') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-      osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-      osc.start(now);
-      osc.stop(now + 0.35);
-    } else if (type === 'error') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(250, now);
-      osc.frequency.exponentialRampToValueAtTime(140, now + 0.25);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-      osc.start(now);
-      osc.stop(now + 0.25);
-    } else if (type === 'card') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(300, now);
-      osc.frequency.exponentialRampToValueAtTime(800, now + 0.18);
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-      osc.start(now);
-      osc.stop(now + 0.2);
-    } else if (type === 'dice') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(450, now);
-      osc.frequency.exponentialRampToValueAtTime(200, now + 0.1);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-      osc.start(now);
-      osc.stop(now + 0.1);
-    } else if (type === 'victory') {
-      // Fanfarria andina
-      const notes = [523.25, 659.25, 783.99, 1046.5];
-      notes.forEach((freq, idx) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.type = 'triangle';
-        o.frequency.setValueAtTime(freq, now + idx * 0.12);
-        g.gain.setValueAtTime(0.25, now + idx * 0.12);
-        g.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.3);
-        o.start(now + idx * 0.12);
-        o.stop(now + idx * 0.12 + 0.3);
-      });
-    }
-  } catch (e) {
-    console.warn('Audio no soportado o bloqueado por el navegador', e);
-  }
-}
-
-// ==========================================
-// INICIALIZACIÓN DEL MAZO Y REGLAS
-// ==========================================
-
-function createFullEffectDeck() {
-  const deck = [];
-  Object.values(EFFECTS_CATALOG).forEach(effect => {
-    for (let i = 0; i < effect.copies; i++) {
-      deck.push(effect.id);
+function mostrarPantalla(idPantalla) {
+  PANTALLAS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      if (id === idPantalla) {
+        el.classList.remove('hidden');
+        el.classList.add('active');
+      } else {
+        el.classList.add('hidden');
+        el.classList.remove('active');
+      }
     }
   });
-  return shuffleArray(deck);
-}
-
-function shuffleArray(array) {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ==========================================
-// GESTIÓN DE LOCALSTORAGE
+// PERSISTENCIA EN LOCALSTORAGE
 // ==========================================
 
-function saveStateToStorage() {
+function guardarEstado() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(estadoJuego));
   } catch (e) {
-    console.error('Error guardando en localStorage:', e);
+    console.error('Error guardando partida:', e);
   }
 }
 
-function loadStateFromStorage() {
+function cargarEstado() {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
       return JSON.parse(data);
     }
   } catch (e) {
-    console.error('Error cargando de localStorage:', e);
+    console.error('Error cargando partida:', e);
   }
   return null;
 }
 
-function clearStorage() {
+function reiniciarPartidaStorage() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
 // ==========================================
-// REGISTRO DE LOGS / HISTORIAL
+// REGISTRO DE HISTORIAL (LOGS)
 // ==========================================
 
-function addLog(message, type = 'info') {
-  const entry = {
-    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    message,
-    type
-  };
-  gameState.logs.unshift(entry);
-  if (gameState.logs.length > 40) gameState.logs.pop();
-  renderLogs();
-  saveStateToStorage();
+function registrarLog(texto) {
+  const hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  estadoJuego.registroLogs.unshift(`[${hora}] ${texto}`);
+  if (estadoJuego.registroLogs.length > 25) estadoJuego.registroLogs.pop();
+  actualizarVistaLogs();
+  guardarEstado();
 }
 
-function renderLogs() {
-  const container = document.getElementById('game-log-entries');
+function actualizarVistaLogs() {
+  const container = document.getElementById('partida-log-list');
   if (!container) return;
-  container.innerHTML = gameState.logs.map(log => `
-    <div class="log-item ${log.type}">
-      <span style="opacity: 0.6; font-size: 0.75rem;">[${log.time}]</span> ${log.message}
-    </div>
-  `).join('');
+  container.innerHTML = estadoJuego.registroLogs.map(l => `<div class="log-entry">${l}</div>`).join('');
 }
 
 // ==========================================
-// RENDERIZADO DE PANTALLA: CONFIGURACIÓN
+// PANTALLA 1: INICIO
+// Registro de 2 a 4 nombres y elección de fichas sin repetir
 // ==========================================
 
-let currentConfigCount = 3;
-let playerTokenSelections = ['condor', 'mototaxi', 'llama', 'combi'];
+let cantidadJugadoresActual = 3;
+let fichasSeleccionadas = ['condor', 'mototaxi', 'llama', 'combi'];
 
-function renderSetupForm(playerCount) {
-  currentConfigCount = playerCount;
-  const form = document.getElementById('setup-form');
-  form.innerHTML = '';
+function renderizarPantallaInicio(cantidad) {
+  cantidadJugadoresActual = cantidad;
+  const container = document.getElementById('inicio-players-container');
+  container.innerHTML = '';
 
-  const defaultNames = ['Ana', 'Carlos', 'Diego', 'Lucía'];
+  const nombresDefault = ['Ana', 'Carlos', 'Diego', 'Lucía'];
 
-  for (let i = 0; i < playerCount; i++) {
-    const defaultToken = TOKENS_CATALOG[i % TOKENS_CATALOG.length].id;
-    if (!playerTokenSelections[i]) {
-      playerTokenSelections[i] = defaultToken;
-    }
+  for (let i = 0; i < cantidad; i++) {
+    const fichaSeleccionada = fichasSeleccionadas[i] || FICHAS_CATALOG[i].id;
+    fichasSeleccionadas[i] = fichaSeleccionada;
 
     const card = document.createElement('div');
-    card.className = 'player-card-input';
-    card.id = `player-card-${i}`;
-
-    const currentToken = TOKENS_CATALOG.find(t => t.id === playerTokenSelections[i]) || TOKENS_CATALOG[0];
-
+    card.className = 'player-input-card';
     card.innerHTML = `
-      <div class="player-header-setup">
-        <span class="player-label">Jugador ${i + 1}</span>
-        <span class="token-preview-chip" style="background-color: ${currentToken.colorHex}22; color: ${currentToken.colorHex}; border-color: ${currentToken.borderHex};">
-          ${currentToken.icon} ${currentToken.name}
-        </span>
+      <div class="pic-header">
+        <span class="pic-title">Jugador ${i + 1}</span>
       </div>
-      <div class="input-group">
-        <label for="player-name-${i}">Nombre del explorador:</label>
-        <input type="text" id="player-name-${i}" class="input-text" value="${defaultNames[i] || 'Jugador ' + (i + 1)}" maxlength="20" required autocomplete="off">
+      <div class="input-box">
+        <label for="input-name-${i}">Nombre del explorador:</label>
+        <input type="text" id="input-name-${i}" class="input-field" value="${nombresDefault[i]}" maxlength="20" required autocomplete="off">
       </div>
-      <div class="token-select-group">
-        <label>Elige tu Ficha 3D:</label>
-        <div class="token-radio-cards" data-player-idx="${i}">
-          ${TOKENS_CATALOG.map(token => {
-            const isSelected = playerTokenSelections[i] === token.id;
-            const isTaken = playerTokenSelections.slice(0, playerCount).some((tId, idx) => idx !== i && tId === token.id);
+      <div>
+        <label class="token-options-label">Elige tu ficha 3D (sin repetir):</label>
+        <div class="token-options-grid" data-p-idx="${i}">
+          ${FICHAS_CATALOG.map(f => {
+            const isSelected = fichaSeleccionada === f.id;
+            // Deshabilitada si otro jugador ya la tiene seleccionada
+            const isTaken = fichasSeleccionadas.slice(0, cantidad).some((fId, idx) => idx !== i && fId === f.id);
             return `
-              <label class="token-radio-label ${isSelected ? 'selected' : ''} ${isTaken ? 'disabled' : ''}" style="border-left: 4px solid ${token.colorHex}">
-                <input type="radio" name="token-${i}" value="${token.id}" ${isSelected ? 'checked' : ''} ${isTaken ? 'disabled' : ''}>
-                <span>${token.icon} ${token.name}</span>
+              <label class="token-choice ${isSelected ? 'selected' : ''} ${isTaken ? 'disabled' : ''}">
+                <input type="radio" name="ficha-p-${i}" value="${f.id}" ${isSelected ? 'checked' : ''} ${isTaken ? 'disabled' : ''}>
+                <span>${f.icon} ${f.name}</span>
               </label>
             `;
           }).join('')}
@@ -483,207 +320,133 @@ function renderSetupForm(playerCount) {
       </div>
     `;
 
-    form.appendChild(card);
+    container.appendChild(card);
   }
 
-  // Event listeners para selección de fichas sin repetir
-  form.querySelectorAll('.token-radio-cards').forEach(group => {
-    group.addEventListener('change', (e) => {
-      const pIdx = parseInt(group.dataset.playerIdx, 10);
-      const chosenToken = e.target.value;
-      playerTokenSelections[pIdx] = chosenToken;
-      playSound('click');
-      renderSetupForm(currentConfigCount);
+  // Event listener para cambio de fichas
+  container.querySelectorAll('.token-options-grid').forEach(grid => {
+    grid.addEventListener('change', (e) => {
+      const pIdx = parseInt(grid.dataset.pIdx, 10);
+      fichasSeleccionadas[pIdx] = e.target.value;
+      renderizarPantallaInicio(cantidadJugadoresActual);
     });
   });
 }
 
-function checkSavedGame() {
-  const saved = loadStateFromStorage();
-  const banner = document.getElementById('resume-banner');
-  const resumeText = document.getElementById('resume-text');
+function iniciarPartidaDesdeInicio() {
+  const errorBox = document.getElementById('inicio-error-msg');
+  errorBox.classList.add('hidden');
 
-  if (saved && saved.isStarted && !saved.isFinished && saved.players && saved.players.length > 0) {
-    banner.classList.remove('hidden');
-    const pNames = saved.players.map(p => p.name).join(', ');
-    resumeText.textContent = `Partida en curso con ${saved.players.length} jugadores: ${pNames}.`;
-  } else {
-    banner.classList.add('hidden');
-  }
-}
+  const jugadores = [];
+  const fichasUsadas = new Set();
 
-// ==========================================
-// INICIAR / REANUDAR PARTIDA
-// ==========================================
+  for (let i = 0; i < cantidadJugadoresActual; i++) {
+    const input = document.getElementById(`input-name-${i}`);
+    const nombre = input ? input.value.trim() : `Jugador ${i + 1}`;
+    const fichaId = fichasSeleccionadas[i];
 
-function startNewGame() {
-  const players = [];
-  const chosenTokens = new Set();
-
-  for (let i = 0; i < currentConfigCount; i++) {
-    const nameInput = document.getElementById(`player-name-${i}`);
-    const name = nameInput ? nameInput.value.trim() : `Jugador ${i + 1}`;
-    const tokenId = playerTokenSelections[i];
-
-    if (chosenTokens.has(tokenId)) {
-      alert(`La ficha ${tokenId} está repetida. Cada explorador debe tener una ficha diferente.`);
+    if (!nombre) {
+      errorBox.textContent = `Por favor ingresa un nombre para el Jugador ${i + 1}.`;
+      errorBox.classList.remove('hidden');
       return;
     }
-    chosenTokens.add(tokenId);
 
-    const tokenObj = TOKENS_CATALOG.find(t => t.id === tokenId);
+    if (fichasUsadas.has(fichaId)) {
+      errorBox.textContent = `La ficha ${fichaId} está repetida. Cada explorador debe tener una ficha diferente.`;
+      errorBox.classList.remove('hidden');
+      return;
+    }
+    fichasUsadas.add(fichaId);
 
-    players.push({
+    const fichaObj = FICHAS_CATALOG.find(f => f.id === fichaId);
+
+    jugadores.push({
       id: i,
-      name: name || `Jugador ${i + 1}`,
-      token: tokenObj,
-      pistas: [], // Array con 'Sol', 'Montana', 'Rio'
-      cards: []   // Array con id de efectos (máximo 2)
+      name: nombre,
+      token: fichaObj,
+      pistas: [], // Sol, Montana, Rio
+      cartas: []  // Máximo 2 cartas de efectos
     });
   }
 
-  gameState = {
-    isStarted: true,
-    isFinished: false,
-    winner: null,
-    activePlayerIndex: 0,
-    players: players,
-    effectDeck: createFullEffectDeck(),
-    usedQuestionsIds: [],
-    logs: []
+  // Generar mazo de 14 cartas de efectos (2 copias de cada uno)
+  const mazo = [];
+  Object.values(EFECTOS_CATALOG).forEach(efecto => {
+    for (let c = 0; c < efecto.copies; c++) {
+      mazo.push(efecto.id);
+    }
+  });
+
+  // Barajar mazo
+  for (let i = mazo.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [mazo[i], mazo[j]] = [mazo[j], mazo[i]];
+  }
+
+  estadoJuego = {
+    iniciada: true,
+    finalizada: false,
+    jugadorActivoIdx: 0,
+    jugadores: jugadores,
+    mazoEfectos: mazo,
+    preguntasUsadas: [],
+    registroLogs: []
   };
 
-  playSound('correct');
-  addLog(`¡Partida iniciada con ${players.length} jugadores: ${players.map(p => p.name).join(', ')}!`, 'info');
-  saveStateToStorage();
-  showGameScreen();
-}
-
-function resumeSavedGame() {
-  const saved = loadStateFromStorage();
-  if (saved) {
-    gameState = saved;
-    playSound('correct');
-    showGameScreen();
-  }
-}
-
-function restartGamePrompt() {
-  if (confirm('¿Estás seguro de que deseas abandonar la partida actual y comenzar una nueva?')) {
-    clearStorage();
-    showSetupScreen();
-  }
+  registrarLog(`¡Partida iniciada con ${jugadores.length} jugadores: ${jugadores.map(j => j.name).join(', ')}!`);
+  guardarEstado();
+  renderizarPantallaPartida();
+  mostrarPantalla('pantalla-partida');
 }
 
 // ==========================================
-// NAVEGACIÓN ENTRE PANTALLAS
+// PANTALLA 2: PARTIDA
+// Jugador activo, pistas y cartas de todos;
+// Botones: Pregunta, Sorpresa, Usar carta, Terminar turno, Llegué al Cuy Dorado
 // ==========================================
 
-function showSetupScreen() {
-  document.getElementById('screen-setup').classList.remove('hidden');
-  document.getElementById('screen-game').classList.add('hidden');
-  document.getElementById('btn-restart-game').classList.add('hidden');
-  checkSavedGame();
-  renderSetupForm(currentConfigCount);
+function getJugadorActivo() {
+  return estadoJuego.jugadores[estadoJuego.jugadorActivoIdx];
 }
 
-function showGameScreen() {
-  document.getElementById('screen-setup').classList.add('hidden');
-  document.getElementById('screen-game').classList.remove('hidden');
-  document.getElementById('btn-restart-game').classList.remove('hidden');
-  renderGameDashboard();
-}
+function renderizarPantallaPartida() {
+  const activo = getJugadorActivo();
+  if (!activo) return;
 
-// ==========================================
-// RENDERIZADO DEL TABLERO DE JUEGO (DASHBOARD)
-// ==========================================
+  // Banner Jugador Activo
+  document.getElementById('ap-badge-icon').textContent = activo.token.icon;
+  document.getElementById('ap-player-name').textContent = activo.name;
+  document.getElementById('ap-player-token').textContent = `Ficha: ${activo.token.name} (${activo.token.color})`;
 
-function getActivePlayer() {
-  return gameState.players[gameState.activePlayerIndex];
-}
-
-function renderGameDashboard() {
-  const activePlayer = getActivePlayer();
-  if (!activePlayer) return;
-
-  // 1. Banner superior del turno
-  const avatarEl = document.getElementById('current-player-avatar');
-  avatarEl.textContent = activePlayer.token.icon;
-  avatarEl.style.backgroundColor = activePlayer.token.colorHex + '22';
-  avatarEl.style.borderColor = activePlayer.token.borderHex;
-
-  document.getElementById('current-player-name').textContent = activePlayer.name;
-  document.getElementById('current-player-token').textContent = `${activePlayer.token.name} (${activePlayer.token.colorName})`;
-
-  // Pistas del jugador activo
-  const pistasRow = document.getElementById('current-player-pistas-icons');
-  pistasRow.innerHTML = PISTAS_KEYS.map(key => {
-    const hasPista = activePlayer.pistas.includes(key);
-    const info = PISTAS_INFO[key];
+  // Estado de Todos los Jugadores (Pistas y Cartas)
+  const gridContainer = document.getElementById('partida-players-grid');
+  gridContainer.innerHTML = estadoJuego.jugadores.map((p, idx) => {
+    const isActivo = idx === estadoJuego.jugadorActivoIdx;
     return `
-      <span class="pista-chip ${hasPista ? 'acquired' : 'missing'}" data-pista="${key}">
-        ${info.icon} ${info.name} ${hasPista ? '✓' : ''}
-      </span>
-    `;
-  }).join('');
-
-  // Cartas del jugador activo
-  const cardsCountEl = document.getElementById('current-player-cards-count');
-  cardsCountEl.textContent = activePlayer.cards.length;
-
-  const cardsRow = document.getElementById('current-player-cards-icons');
-  if (activePlayer.cards.length === 0) {
-    cardsRow.innerHTML = `<span class="empty-card-slot">Vacío</span><span class="empty-card-slot">Vacío</span>`;
-  } else {
-    cardsRow.innerHTML = activePlayer.cards.map(cardId => {
-      const cardInfo = EFFECTS_CATALOG[cardId];
-      return `<span class="active-card-mini" title="${cardInfo.desc}">${cardInfo.icon} ${cardInfo.name}</span>`;
-    }).join('');
-    if (activePlayer.cards.length === 1) {
-      cardsRow.innerHTML += `<span class="empty-card-slot">Vacío</span>`;
-    }
-  }
-
-  // 2. Contador de mazo
-  const deckEl = document.getElementById('deck-counter');
-  deckEl.innerHTML = `Mazo de efectos: <strong>${gameState.effectDeck.length}/14</strong>`;
-
-  // 3. Tarjetas de estado de todos los jugadores
-  const playersContainer = document.getElementById('players-status-cards');
-  playersContainer.innerHTML = gameState.players.map((p, idx) => {
-    const isTurn = idx === gameState.activePlayerIndex;
-    return `
-      <div class="player-status-card ${isTurn ? 'is-turn' : ''}" style="border-left: 6px solid ${p.token.colorHex};">
-        <div class="psc-header">
-          <div class="psc-avatar-name">
-            <div class="psc-avatar" style="border-color: ${p.token.borderHex}; background: ${p.token.colorHex}15;">
-              ${p.token.icon}
-            </div>
-            <div>
-              <div class="psc-name">${p.name}</div>
-              <div class="psc-token-name">${p.token.name}</div>
-            </div>
-          </div>
-          ${isTurn ? '<span class="psc-turn-tag">TURNO ACTUAL</span>' : ''}
+      <div class="player-status-tile ${isActivo ? 'is-active-turn' : ''}" style="border-left: 5px solid ${p.token.hex}">
+        <div class="pst-header">
+          <div class="pst-name-token">${p.token.icon} ${p.name} (${p.token.name})</div>
+          ${isActivo ? '<span class="pst-turn-chip">ACTIVO</span>' : ''}
         </div>
 
-        <div class="psc-pistas-row">
-          <span class="psc-label">Pistas (${p.pistas.length}/3)</span>
-          <div class="psc-chips-list">
-            ${PISTAS_KEYS.map(key => {
-              const has = p.pistas.includes(key);
-              return `<span class="pista-chip ${has ? 'acquired' : 'missing'}" style="font-size: 0.72rem;">${PISTAS_INFO[key].icon} ${PISTAS_INFO[key].name}</span>`;
+        <div class="pst-row">
+          <span class="pst-label">Pistas (${p.pistas.length}/3)</span>
+          <div class="pst-pistas-list">
+            ${['Sol', 'Montana', 'Rio'].map(k => {
+              const tiene = p.pistas.includes(k);
+              const info = PISTAS_INFO[k];
+              return `<span class="pista-badge ${tiene ? 'has' : 'none'}">${info.icon} ${info.name} ${tiene ? '✓' : ''}</span>`;
             }).join('')}
           </div>
         </div>
 
-        <div class="psc-effects-row">
-          <span class="psc-label">Cartas de Efecto (${p.cards.length}/2)</span>
-          <div class="psc-chips-list">
-            ${p.cards.length === 0 ? '<span style="font-size: 0.75rem; color: #a8a29e;">Sin cartas</span>' : ''}
-            ${p.cards.map(cId => {
-              const c = EFFECTS_CATALOG[cId];
-              return `<span class="effect-badge-item" title="${c.desc}">${c.icon} ${c.name}</span>`;
+        <div class="pst-row">
+          <span class="pst-label">Cartas de Efecto (${p.cartas.length}/2)</span>
+          <div class="pst-cards-list">
+            ${p.cartas.length === 0 ? '<span style="font-size:0.75rem; color:#a8a29e;">Sin cartas</span>' : ''}
+            ${p.cartas.map(cId => {
+              const c = EFECTOS_CATALOG[cId];
+              return `<span class="card-badge-pill" title="${c.desc}">${c.icon} ${c.name}</span>`;
             }).join('')}
           </div>
         </div>
@@ -691,754 +454,603 @@ function renderGameDashboard() {
     `;
   }).join('');
 
-  renderLogs();
+  // Contador de Mazo
+  document.getElementById('partida-deck-indicator').textContent = `Mazo de efectos: ${estadoJuego.mazoEfectos.length}/14`;
+
+  actualizarVistaLogs();
+}
+
+function terminarTurno() {
+  const anterior = getJugadorActivo();
+  estadoJuego.jugadorActivoIdx = (estadoJuego.jugadorActivoIdx + 1) % estadoJuego.jugadores.length;
+  const nuevo = getJugadorActivo();
+
+  registrarLog(`Termina el turno de ${anterior.name}. Turno de <strong>${nuevo.name}</strong> (${nuevo.token.name}).`);
+  guardarEstado();
+  renderizarPantallaPartida();
 }
 
 // ==========================================
-// CONTROL DE TURNOS
+// PANTALLA 3: PREGUNTA
+// Enunciado, tres respuestas y resultado. Si aciertas, eliges pista faltante.
 // ==========================================
 
-function nextTurn() {
-  playSound('click');
-  const prevPlayer = getActivePlayer();
-  gameState.activePlayerIndex = (gameState.activePlayerIndex + 1) % gameState.players.length;
-  const newPlayer = getActivePlayer();
+let preguntaActual = null;
+let yaRespondioPregunta = false;
 
-  addLog(`Termina el turno de <strong>${prevPlayer.name}</strong>. Es el turno de <strong>${newPlayer.name}</strong> (${newPlayer.token.name}).`, 'info');
-  saveStateToStorage();
-  renderGameDashboard();
-}
-
-// ==========================================
-// MODAL: CASILLA PREGUNTA
-// ==========================================
-
-let currentQuestion = null;
-let answeredCurrentQuestion = false;
-
-function openQuestionModal() {
-  playSound('click');
-  const player = getActivePlayer();
-  answeredCurrentQuestion = false;
+function abrirPantallaPregunta() {
+  const activo = getJugadorActivo();
+  yaRespondioPregunta = false;
 
   // Filtrar preguntas no usadas
-  let available = QUESTIONS_BANK.filter(q => !gameState.usedQuestionsIds.includes(q.id));
-  if (available.length === 0) {
-    // Si se agotan, reiniciamos el banco de usadas
-    gameState.usedQuestionsIds = [];
-    available = [...QUESTIONS_BANK];
-    addLog(`¡Se han respondido todas las preguntas de trivia! Se reinicia el mazo de preguntas.`, 'info');
+  let disponibles = BANCO_15_PREGUNTAS.filter(q => !estadoJuego.preguntasUsadas.includes(q.id));
+  if (disponibles.length === 0) {
+    // Si se agotan las 15, se reinician
+    estadoJuego.preguntasUsadas = [];
+    disponibles = [...BANCO_15_PREGUNTAS];
+    registrarLog('Se han respondido las 15 preguntas de trivia. ¡Se reinicia el mazo de preguntas!');
   }
 
-  const randomIndex = Math.floor(Math.random() * available.length);
-  currentQuestion = available[randomIndex];
-  gameState.usedQuestionsIds.push(currentQuestion.id);
+  const randomIdx = Math.floor(Math.random() * disponibles.length);
+  preguntaActual = disponibles[randomIdx];
+  estadoJuego.preguntasUsadas.push(preguntaActual.id);
+  guardarEstado();
 
-  // UI
-  document.getElementById('q-player-name').textContent = `Explorador: ${player.name} (${player.token.name})`;
-  document.getElementById('q-category').textContent = currentQuestion.category;
-  document.getElementById('q-question-text').textContent = currentQuestion.question;
+  // Render UI
+  document.getElementById('pregunta-player-indicator').textContent = `Explorador: ${activo.name} (${activo.token.name})`;
+  document.getElementById('pregunta-category-tag').textContent = preguntaActual.categoria;
+  document.getElementById('pregunta-texto').textContent = preguntaActual.enunciado;
 
-  // Reset feedback y selector de pistas
-  const feedbackEl = document.getElementById('q-feedback');
-  feedbackEl.classList.add('hidden');
-  feedbackEl.className = 'feedback-banner hidden';
+  // Ocultar resultados previos
+  document.getElementById('pregunta-resultado-box').classList.add('hidden');
+  document.getElementById('pregunta-selector-pistas').classList.add('hidden');
 
-  const pistasPickEl = document.getElementById('q-pistas-selector');
-  pistasPickEl.classList.add('hidden');
-
-  const btnConfirm = document.getElementById('btn-q-confirm');
-  btnConfirm.classList.add('hidden');
-
-  // Render opciones
-  const optionsContainer = document.getElementById('q-options-container');
-  optionsContainer.innerHTML = currentQuestion.options.map((opt, idx) => `
-    <button class="btn-option" data-opt-idx="${idx}">
-      <span><strong>${String.fromCharCode(65 + idx)}.</strong> ${opt}</span>
-      <span class="option-check"></span>
+  // Renderizar 3 opciones
+  const opcionesContainer = document.getElementById('pregunta-opciones');
+  opcionesContainer.innerHTML = preguntaActual.opciones.map((opt, idx) => `
+    <button class="q-btn-option" data-idx="${idx}">
+      <strong>${String.fromCharCode(65 + idx)}.</strong> ${opt}
     </button>
   `).join('');
 
-  optionsContainer.querySelectorAll('.btn-option').forEach(btn => {
-    btn.addEventListener('click', () => handleAnswerClick(parseInt(btn.dataset.optIdx, 10)));
+  opcionesContainer.querySelectorAll('.q-btn-option').forEach(btn => {
+    btn.addEventListener('click', () => responderPregunta(parseInt(btn.dataset.idx, 10)));
   });
 
-  openModal('modal-pregunta');
+  mostrarPantalla('pantalla-pregunta');
 }
 
-function handleAnswerClick(selectedIdx) {
-  if (answeredCurrentQuestion) return;
-  answeredCurrentQuestion = true;
+function responderPregunta(opcionSeleccionada) {
+  if (yaRespondioPregunta) return;
+  yaRespondioPregunta = true;
 
-  const player = getActivePlayer();
-  const optionsButtons = document.querySelectorAll('#q-options-container .btn-option');
-  optionsButtons.forEach(b => b.disabled = true);
+  const activo = getJugadorActivo();
+  const botones = document.querySelectorAll('#pregunta-opciones .q-btn-option');
+  botones.forEach(b => b.disabled = true);
 
-  const isCorrect = selectedIdx === currentQuestion.correct;
-  const chosenBtn = optionsButtons[selectedIdx];
-  const correctBtn = optionsButtons[currentQuestion.correct];
-
-  const feedbackEl = document.getElementById('q-feedback');
-  const feedbackTitle = document.getElementById('q-feedback-title');
-  const feedbackMsg = document.getElementById('q-feedback-msg');
-  const feedbackIcon = document.getElementById('q-feedback-icon');
-
-  if (isCorrect) {
-    playSound('correct');
-    chosenBtn.classList.add('correct');
-    feedbackEl.className = 'feedback-banner success';
-    feedbackIcon.textContent = '🎉';
-    feedbackTitle.textContent = '¡RESPUESTA CORRECTA!';
-
-    // Verificar qué pistas le faltan
-    const missingPistas = PISTAS_KEYS.filter(k => !player.pistas.includes(k));
-
-    if (missingPistas.length === 0) {
-      feedbackMsg.innerHTML = `¡Excelente! Ya tienes las 3 pistas sagradas en tu poder. ¡Avanza directo al centro hacia el Cuy Dorado!`;
-      addLog(`<strong>${player.name}</strong> acertó la pregunta "${currentQuestion.question}" (Ya posee todas las pistas).`, 'question');
-      document.getElementById('btn-q-confirm').classList.remove('hidden');
-    } else {
-      feedbackMsg.innerHTML = `Elige a continuación la pista sagrada física que deseas incorporar a tu inventario:`;
-      showPistasSelector(missingPistas);
-    }
-  } else {
-    playSound('error');
-    chosenBtn.classList.add('incorrect');
-    correctBtn.classList.add('correct');
-    feedbackEl.className = 'feedback-banner error';
-    feedbackIcon.textContent = '❌';
-    feedbackTitle.textContent = '¡RESPUESTA INCORRECTA!';
-    feedbackMsg.textContent = `La respuesta correcta era: "${currentQuestion.options[currentQuestion.correct]}". No obtienes ninguna pista en este turno.`;
-
-    addLog(`<strong>${player.name}</strong> falló la pregunta de trivia.`, 'question');
-    document.getElementById('btn-q-confirm').classList.remove('hidden');
+  const esCorrecta = opcionSeleccionada === preguntaActual.correcta;
+  botones[opcionSeleccionada].classList.add(esCorrecta ? 'correct' : 'incorrect');
+  if (!esCorrecta) {
+    botones[preguntaActual.correcta].classList.add('correct');
   }
 
-  feedbackEl.classList.remove('hidden');
-  saveStateToStorage();
+  const resBox = document.getElementById('pregunta-resultado-box');
+  const resIcon = document.getElementById('pregunta-res-icon');
+  const resTitle = document.getElementById('pregunta-res-title');
+  const resDesc = document.getElementById('pregunta-res-desc');
+
+  if (esCorrecta) {
+    resBox.className = 'result-banner success';
+    resIcon.textContent = '🎉';
+    resTitle.textContent = '¡RESPUESTA CORRECTA!';
+
+    // Pistas que le faltan
+    const faltantes = ['Sol', 'Montana', 'Rio'].filter(k => !activo.pistas.includes(k));
+
+    if (faltantes.length === 0) {
+      resDesc.innerHTML = `¡Excelente! Ya posees las 3 pistas sagradas (Sol ☀️, Montaña ⛰️ y Río 🌊). ¡Dirígete al centro para encontrar al Cuy Dorado!`;
+      registrarLog(`<strong>${activo.name}</strong> acertó la pregunta (Ya tiene todas las pistas).`);
+    } else {
+      resDesc.innerHTML = `Has respondido con éxito. Elige una de las pistas que te faltan a continuación:`;
+      mostrarSelectorPistasFaltantes(faltantes);
+    }
+  } else {
+    resBox.className = 'result-banner error';
+    resIcon.textContent = '❌';
+    resTitle.textContent = '¡RESPUESTA INCORRECTA!';
+    resDesc.innerHTML = `La respuesta correcta era: <strong>${preguntaActual.opciones[preguntaActual.correcta]}</strong>. No obtienes ninguna pista en este turno.`;
+    registrarLog(`<strong>${activo.name}</strong> falló la pregunta de trivia.`);
+  }
+
+  resBox.classList.remove('hidden');
 }
 
-function showPistasSelector(missingPistas) {
-  const container = document.getElementById('q-pistas-selector');
-  const buttonsGrid = document.getElementById('q-pistas-buttons');
-  buttonsGrid.innerHTML = '';
+function mostrarSelectorPistasFaltantes(faltantes) {
+  const selectorBox = document.getElementById('pregunta-selector-pistas');
+  const grid = document.getElementById('pregunta-pistas-grid');
+  grid.innerHTML = '';
 
-  missingPistas.forEach(pistaKey => {
+  faltantes.forEach(pistaKey => {
     const info = PISTAS_INFO[pistaKey];
     const btn = document.createElement('button');
     btn.className = 'btn-pick-pista';
-    btn.innerHTML = `${info.icon} Reclamar ${info.name}`;
+    btn.innerHTML = `${info.icon} Tomar ${info.name}`;
     btn.addEventListener('click', () => {
-      claimPistaForPlayer(getActivePlayer(), pistaKey);
-      container.classList.add('hidden');
-      document.getElementById('q-feedback-msg').innerHTML = `Has obtenido la pista <strong>${info.icon} ${info.name}</strong>. ¡Toma tu tarjeta física!`;
-      document.getElementById('btn-q-confirm').classList.remove('hidden');
+      const activo = getJugadorActivo();
+      if (!activo.pistas.includes(pistaKey)) {
+        activo.pistas.push(pistaKey);
+        registrarLog(`<strong>${activo.name}</strong> obtuvo la pista sagrada: <strong>${info.icon} ${info.name}</strong>.`);
+        guardarEstado();
+      }
+      selectorBox.classList.add('hidden');
+      document.getElementById('pregunta-res-desc').innerHTML = `
+        ¡Excelente! Has reclamado la pista <strong>${info.icon} ${info.name}</strong>.<br>
+        📌 <strong>¡Toma tu tarjeta física de ${info.name}!</strong>
+      `;
     });
-    buttonsGrid.appendChild(btn);
+    grid.appendChild(btn);
   });
 
-  container.classList.remove('hidden');
-}
-
-function claimPistaForPlayer(player, pistaKey) {
-  if (!player.pistas.includes(pistaKey)) {
-    player.pistas.push(pistaKey);
-    playSound('card');
-    addLog(`<strong>${player.name}</strong> obtuvo la pista sagrada: <strong>${PISTAS_INFO[pistaKey].icon} ${PISTAS_INFO[pistaKey].name}</strong>.`, 'pista');
-    renderGameDashboard();
-    saveStateToStorage();
-  }
+  selectorBox.classList.remove('hidden');
 }
 
 // ==========================================
-// MODAL: CASILLA SORPRESA (SORTEO DE CARTA)
+// PANTALLA 4: SORPRESA
+// Carta sorteada e indicación de qué tarjeta física tomar.
 // ==========================================
 
-let drawnCardId = null;
+let cartaSorteadaId = null;
 
-function openSurpriseModal() {
-  playSound('click');
-  const player = getActivePlayer();
+function abrirPantallaSorpresa() {
+  const activo = getJugadorActivo();
 
-  if (gameState.effectDeck.length === 0) {
-    alert('¡El mazo de cartas de efectos está vacío temporalmente! Las cartas volverán al mazo cuando otros jugadores las utilicen.');
+  if (estadoJuego.mazoEfectos.length === 0) {
+    alert('¡El mazo de cartas de efectos está vacío temporalmente! Las cartas volverán al mazo cuando sean utilizadas.');
     return;
   }
 
-  // Sorteo aleatorio de una carta del mazo disponible
-  const randomIndex = Math.floor(Math.random() * gameState.effectDeck.length);
-  drawnCardId = gameState.effectDeck.splice(randomIndex, 1)[0];
-  const cardInfo = EFFECTS_CATALOG[drawnCardId];
+  // Sorteo de carta del mazo
+  const randomIdx = Math.floor(Math.random() * estadoJuego.mazoEfectos.length);
+  cartaSorteadaId = estadoJuego.mazoEfectos.splice(randomIdx, 1)[0];
+  const carta = EFECTOS_CATALOG[cartaSorteadaId];
 
-  playSound('card');
+  // Renderizar la carta sorteada
+  document.getElementById('sorpresa-card-icon').textContent = carta.icon;
+  document.getElementById('sorpresa-card-name').textContent = carta.name;
+  document.getElementById('sorpresa-card-desc').textContent = carta.desc;
+  document.getElementById('sorpresa-physical-name').textContent = `${carta.icon} ${carta.name}`;
 
-  // UI
-  document.getElementById('draw-card-art').textContent = cardInfo.icon;
-  document.getElementById('draw-card-name').textContent = cardInfo.name;
-  document.getElementById('draw-card-desc').textContent = cardInfo.desc;
-  document.getElementById('draw-card-reminder').textContent = `${cardInfo.icon} ${cardInfo.name}`;
+  const descarteBox = document.getElementById('sorpresa-limite-descarte');
+  const btnAceptar = document.getElementById('btn-aceptar-sorpresa');
 
-  const discardSection = document.getElementById('sorpresa-discard-section');
-  const acceptBtn = document.getElementById('btn-sorpresa-accept');
+  // Límite de 2 cartas
+  if (activo.cartas.length >= 2) {
+    // Debe descartar una
+    descarteBox.classList.remove('hidden');
+    btnAceptar.classList.add('hidden');
 
-  // Comprobar límite de 2 cartas
-  if (player.cards.length >= 2) {
-    // Debe descartar una carta: la nueva o una de las que ya tiene
-    discardSection.classList.remove('hidden');
-    acceptBtn.classList.add('hidden');
+    const optionsContainer = document.getElementById('sorpresa-discard-options');
+    optionsContainer.innerHTML = '';
 
-    const discardGrid = document.getElementById('discard-options-grid');
-    discardGrid.innerHTML = '';
-
-    // Opción A: Conservar las 2 actuales y descartar la recién sacada
-    const btnDiscardNew = document.createElement('button');
-    btnDiscardNew.className = 'btn-discard-choice';
-    btnDiscardNew.innerHTML = `Descartar la nueva (${cardInfo.icon} ${cardInfo.name})`;
-    btnDiscardNew.addEventListener('click', () => {
-      // Devolver la nueva al mazo
-      gameState.effectDeck.push(drawnCardId);
-      addLog(`<strong>${player.name}</strong> sacó <strong>${cardInfo.name}</strong> pero decidió descartarla por límite de mano.`, 'surprise');
-      closeModal('modal-sorpresa');
-      renderGameDashboard();
-      saveStateToStorage();
+    // Opción 1: Descartar la recién sorteada
+    const btnD1 = document.createElement('button');
+    btnD1.className = 'btn-discard-option';
+    btnD1.innerHTML = `Devolver al mazo la nueva: <strong>${carta.icon} ${carta.name}</strong>`;
+    btnD1.addEventListener('click', () => {
+      estadoJuego.mazoEfectos.push(cartaSorteadaId);
+      registrarLog(`<strong>${activo.name}</strong> sorteó <strong>${carta.name}</strong> pero la devolvió al mazo por límite de cartas.`);
+      guardarEstado();
+      renderizarPantallaPartida();
+      mostrarPantalla('pantalla-partida');
     });
-    discardGrid.appendChild(btnDiscardNew);
+    optionsContainer.appendChild(btnD1);
 
-    // Opciones B y C: Descartar una de las 2 que ya tenía e incorporar la nueva
-    player.cards.forEach((oldCardId, idx) => {
-      const oldCardInfo = EFFECTS_CATALOG[oldCardId];
-      const btnDiscardOld = document.createElement('button');
-      btnDiscardOld.className = 'btn-discard-choice';
-      btnDiscardOld.innerHTML = `Descartar ${oldCardInfo.icon} ${oldCardInfo.name} y quedarme con ${cardInfo.name}`;
-      btnDiscardOld.addEventListener('click', () => {
+    // Opciones 2 y 3: Descartar una de las 2 que ya tenía
+    activo.cartas.forEach((cId, idx) => {
+      const viejaCarta = EFECTOS_CATALOG[cId];
+      const btnD2 = document.createElement('button');
+      btnD2.className = 'btn-discard-option';
+      btnD2.innerHTML = `Devolver al mazo <strong>${viejaCarta.icon} ${viejaCarta.name}</strong> y quedarme con <strong>${carta.name}</strong>`;
+      btnD2.addEventListener('click', () => {
         // Devolver la vieja al mazo
-        gameState.effectDeck.push(oldCardId);
-        player.cards.splice(idx, 1);
+        estadoJuego.mazoEfectos.push(cId);
+        activo.cartas.splice(idx, 1);
         // Incorporar la nueva
-        player.cards.push(drawnCardId);
-        addLog(`<strong>${player.name}</strong> descartó <strong>${oldCardInfo.name}</strong> y agregó <strong>${cardInfo.name}</strong> a su inventario.`, 'surprise');
-        closeModal('modal-sorpresa');
-        renderGameDashboard();
-        saveStateToStorage();
+        activo.cartas.push(cartaSorteadaId);
+        registrarLog(`<strong>${activo.name}</strong> devolvió <strong>${viejaCarta.name}</strong> al mazo y tomó <strong>${carta.name}</strong>.`);
+        guardarEstado();
+        renderizarPantallaPartida();
+        mostrarPantalla('pantalla-partida');
       });
-      discardGrid.appendChild(btnDiscardOld);
+      optionsContainer.appendChild(btnD2);
     });
   } else {
-    // Si tiene menos de 2, puede aceptarla directamente
-    discardSection.classList.add('hidden');
-    acceptBtn.classList.remove('hidden');
-    acceptBtn.onclick = () => {
-      player.cards.push(drawnCardId);
-      addLog(`<strong>${player.name}</strong> obtuvo la carta de efecto: <strong>${cardInfo.icon} ${cardInfo.name}</strong> (Toma la tarjeta física).`, 'surprise');
-      closeModal('modal-sorpresa');
-      renderGameDashboard();
-      saveStateToStorage();
+    // Si tiene menos de 2 cartas, simplemente la toma
+    descarteBox.classList.add('hidden');
+    btnAceptar.classList.remove('hidden');
+
+    btnAceptar.onclick = () => {
+      activo.cartas.push(cartaSorteadaId);
+      registrarLog(`<strong>${activo.name}</strong> obtuvo la carta de efecto: <strong>${carta.icon} ${carta.name}</strong> (Toma la tarjeta física).`);
+      guardarEstado();
+      renderizarPantallaPartida();
+      mostrarPantalla('pantalla-partida');
     };
   }
 
-  openModal('modal-sorpresa');
+  mostrarPantalla('pantalla-sorpresa');
 }
 
 // ==========================================
-// MODAL: USAR CARTA DE EFECTO
+// PANTALLA 5: USO DE CARTAS
+// Selección del efecto, del rival cuando corresponda y de una posible protección.
 // ==========================================
 
-let selectedCardToPlay = null;
-let selectedTargetRival = null;
-let selectedPistaToSteal = null;
+let cartaElegidaParaUsar = null;
+let rivalElegido = null;
+let pistaRoboElegida = null;
 
-function openUseCardModal() {
-  playSound('click');
-  const player = getActivePlayer();
+function abrirPantallaUsoCartas() {
+  const activo = getJugadorActivo();
 
-  if (player.cards.length === 0) {
-    alert(`No tienes cartas de efecto en tu mano en este momento. Consíguelas cayendo en casillas Sorpresa.`);
-    return;
-  }
+  document.getElementById('uso-cartas-intro').textContent = `Cartas en mano de: ${activo.name} (${activo.token.name})`;
 
-  // Vista de lista de cartas del jugador
-  document.getElementById('usar-carta-list-view').classList.remove('hidden');
-  document.getElementById('usar-carta-target-view').classList.add('hidden');
-  document.getElementById('modal-usar-footer').classList.remove('hidden');
+  // Reset de pasos
+  document.getElementById('uso-step-seleccionar-carta').classList.remove('hidden');
+  document.getElementById('uso-step-seleccionar-rival').classList.add('hidden');
+  document.getElementById('uso-step-seleccionar-pista').classList.add('hidden');
+  document.getElementById('uso-step-proteccion').classList.add('hidden');
+  document.getElementById('uso-step-resultado').classList.add('hidden');
 
-  const container = document.getElementById('my-cards-selection-grid');
-  container.innerHTML = player.cards.map((cId, idx) => {
-    const card = EFFECTS_CATALOG[cId];
-    return `
-      <button class="playable-card-btn" data-card-idx="${idx}" data-card-id="${card.id}">
-        <span class="pc-icon">${card.icon}</span>
-        <strong class="pc-title">${card.name}</strong>
-        <span class="pc-desc">${card.desc}</span>
-      </button>
-    `;
-  }).join('');
+  const container = document.getElementById('uso-my-cards-container');
+  const emptyMsg = document.getElementById('uso-no-cards-msg');
 
-  container.querySelectorAll('.playable-card-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cIdx = parseInt(btn.dataset.cardIdx, 10);
-      initiatePlayCard(cIdx);
+  if (activo.cartas.length === 0) {
+    container.innerHTML = '';
+    emptyMsg.classList.remove('hidden');
+  } else {
+    emptyMsg.classList.add('hidden');
+    container.innerHTML = activo.cartas.map((cId, idx) => {
+      const c = EFECTOS_CATALOG[cId];
+      return `
+        <button class="card-playable-btn" data-c-idx="${idx}">
+          <div class="cpb-icon">${c.icon}</div>
+          <strong class="cpb-name">${c.name}</strong>
+          <p class="cpb-desc">${c.desc}</p>
+        </button>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.card-playable-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cIdx = parseInt(btn.dataset.cIdx, 10);
+        procesarCartaSeleccionada(cIdx);
+      });
     });
-  });
+  }
 
-  openModal('modal-usar-carta');
+  mostrarPantalla('pantalla-uso-cartas');
 }
 
-function initiatePlayCard(cardIndexInHand) {
-  const player = getActivePlayer();
-  const cardId = player.cards[cardIndexInHand];
-  const cardInfo = EFFECTS_CATALOG[cardId];
-  selectedCardToPlay = { cardId, cardIndexInHand, cardInfo };
+function procesarCartaSeleccionada(cIdx) {
+  const activo = getJugadorActivo();
+  const cId = activo.cartas[cIdx];
+  const cInfo = EFECTOS_CATALOG[cId];
+  cartaElegidaParaUsar = { id: cId, index: cIdx, info: cInfo };
 
-  if (cardInfo.id === 'mazamorra') {
-    alert('La "Mazamorra morada" es una carta de reacción defensiva. Se activa automáticamente cuando un rival te ataca con "Roba una pista", "Ají picante" o "Desvío" para protegerte.');
+  if (cId === 'mazamorra') {
+    alert('La "Mazamorra morada" es una carta de reacción defensiva. Se usa cuando un rival intenta atacarte con "Roba una pista", "Ají picante" o "Desvío".');
     return;
   }
 
-  if (cardInfo.id === 'ceviche') {
-    // Ceviche: Movimiento extra inmediato
-    consumeCardFromPlayer(player, cardIndexInHand);
-    closeModal('modal-usar-carta');
-    addLog(`<strong>${player.name}</strong> jugó <strong>Ceviche 🍲</strong>: ¡Lanza el dado físico y realiza un movimiento extra! (Este movimiento no activa casilla).`, 'info');
-    alert(`🍲 ¡Has jugado Ceviche!\n\nLanza el dado y realiza un movimiento extra en el tablero físico con tu ficha. Recuerda: este movimiento extra no activa la casilla donde caigas.`);
-    renderGameDashboard();
+  if (cId === 'ceviche') {
+    // Ceviche: Movimiento extra
+    descartarCartaAlMazo(activo, cIdx);
+    registrarLog(`<strong>${activo.name}</strong> usó <strong>Ceviche 🍲</strong>: ¡Lanza el dado y realiza un movimiento extra!`);
+    mostrarResultadoUso('🍲 Ceviche Activado', 'Lanza el dado físico y realiza un movimiento extra en el tablero (este movimiento no activa casilla). Se devuelve la tarjeta física al pozo.');
     return;
   }
 
-  if (cardInfo.id === 'pollo_brasa') {
-    // Pollo a la brasa: Pregunta extra inmediata
-    consumeCardFromPlayer(player, cardIndexInHand);
-    closeModal('modal-usar-carta');
-    addLog(`<strong>${player.name}</strong> jugó <strong>Pollo a la brasa 🍗</strong>: ¡Responde una pregunta adicional para intentar obtener otra pista!`, 'info');
-    renderGameDashboard();
-    setTimeout(() => {
-      openQuestionModal();
-    }, 300);
+  if (cId === 'pollo_brasa') {
+    // Pollo a la brasa: Pregunta extra
+    descartarCartaAlMazo(activo, cIdx);
+    registrarLog(`<strong>${activo.name}</strong> usó <strong>Pollo a la brasa 🍗</strong>: ¡Responde una pregunta adicional!`);
+    abrirPantallaPregunta();
     return;
   }
 
-  if (cardInfo.id === 'inca_kola') {
+  if (cId === 'inca_kola') {
     // Inca Kola: Repetir lanzamiento
-    consumeCardFromPlayer(player, cardIndexInHand);
-    closeModal('modal-usar-carta');
-    addLog(`<strong>${player.name}</strong> jugó <strong>Inca Kola 🥤</strong>: ¡Vuelve a tirar el dado y usa el nuevo resultado!`, 'info');
-    alert(`🥤 ¡Has jugado Inca Kola!\n\nVuelve a lanzar el dado físico (o usa el dado virtual) y utiliza el nuevo resultado.`);
-    renderGameDashboard();
+    descartarCartaAlMazo(activo, cIdx);
+    registrarLog(`<strong>${activo.name}</strong> usó <strong>Inca Kola 🥤</strong>: ¡Vuelve a lanzar el dado y usa el nuevo resultado!`);
+    mostrarResultadoUso('🥤 Inca Kola Activada', 'Vuelve a lanzar el dado físico y utiliza el nuevo resultado. Se devuelve la tarjeta física al pozo.');
     return;
   }
 
-  // Cartas que requieren objetivo rival (Roba una pista, Ají picante, Desvío)
-  setupTargetRivalView(cardInfo);
+  // Cartas que requieren selección de rival (Roba una pista, Ají picante, Desvío)
+  configurarSeleccionRival(cInfo);
 }
 
-function setupTargetRivalView(cardInfo) {
-  document.getElementById('usar-carta-list-view').classList.add('hidden');
-  document.getElementById('usar-carta-target-view').classList.remove('hidden');
-  document.getElementById('modal-usar-footer').classList.add('hidden');
+function configurarSeleccionRival(cInfo) {
+  document.getElementById('uso-step-seleccionar-rival').classList.remove('hidden');
 
-  const cardInfoBox = document.getElementById('target-card-info');
-  cardInfoBox.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; background: #fff7ed; border-radius: 8px; border: 1.5px solid #fed7aa;">
-      <span style="font-size: 2rem;">${cardInfo.icon}</span>
-      <div>
-        <strong style="color: #9a3412; font-size: 1.1rem;">${cardInfo.name}</strong>
-        <p style="font-size: 0.85rem; color: #451a03; margin: 0;">${cardInfo.desc}</p>
-      </div>
-    </div>
-  `;
+  const rivalsContainer = document.getElementById('uso-rivals-container');
+  rivalsContainer.innerHTML = '';
+  rivalElegido = null;
+  pistaRoboElegida = null;
 
-  // Rival Step
-  const rivalsGrid = document.getElementById('rivals-buttons-grid');
-  rivalsGrid.innerHTML = '';
-  selectedTargetRival = null;
-  selectedPistaToSteal = null;
+  const rivales = estadoJuego.jugadores.filter(p => p.id !== getJugadorActivo().id);
 
-  const otherPlayers = gameState.players.filter(p => p.id !== getActivePlayer().id);
-
-  otherPlayers.forEach(rival => {
+  rivales.forEach(rival => {
     const btn = document.createElement('button');
-    btn.className = 'btn-target-rival';
+    btn.className = 'btn-select-target';
     btn.innerHTML = `${rival.token.icon} ${rival.name} (${rival.token.name})`;
     btn.addEventListener('click', () => {
-      rivalsGrid.querySelectorAll('.btn-target-rival').forEach(b => b.classList.remove('selected'));
+      rivalsContainer.querySelectorAll('.btn-select-target').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
-      handleRivalSelected(rival);
+      rivalElegido = rival;
+      continuarTrasElegirRival();
     });
-    rivalsGrid.appendChild(btn);
+    rivalsContainer.appendChild(btn);
   });
-
-  document.getElementById('target-pista-step').classList.add('hidden');
-  document.getElementById('target-defense-step').classList.add('hidden');
-  document.getElementById('btn-target-confirm').classList.add('hidden');
 }
 
-function handleRivalSelected(rival) {
-  selectedTargetRival = rival;
-  const activePlayer = getActivePlayer();
-  const cardId = selectedCardToPlay.cardInfo.id;
+function continuarTrasElegirRival() {
+  const activo = getJugadorActivo();
+  const cId = cartaElegidaParaUsar.id;
 
-  if (cardId === 'roba_pista') {
+  if (cId === 'roba_pista') {
     // Debe seleccionar una pista que el rival tenga y que al activo le falte
-    const stealablePistas = rival.pistas.filter(p => !activePlayer.pistas.includes(p));
+    const pistasRobables = rivalElegido.pistas.filter(p => !activo.pistas.includes(p));
+    const pistaStep = document.getElementById('uso-step-seleccionar-pista');
+    const grid = document.getElementById('uso-pistas-steal-container');
+    grid.innerHTML = '';
 
-    const pistaStep = document.getElementById('target-pista-step');
-    const pistasGrid = document.getElementById('pistas-to-steal-grid');
-    pistasGrid.innerHTML = '';
-
-    if (stealablePistas.length === 0) {
-      pistasGrid.innerHTML = `<p style="color: #dc2626; font-size: 0.85rem;">${rival.name} no tiene ninguna pista que a ti te falte. Elige a otro rival.</p>`;
+    if (pistasRobables.length === 0) {
+      grid.innerHTML = `<p style="color:#dc2626; font-size:0.9rem;">${rivalElegido.name} no tiene ninguna pista que a ti te falte. Elige a otro rival.</p>`;
       pistaStep.classList.remove('hidden');
-      document.getElementById('target-defense-step').classList.add('hidden');
-      document.getElementById('btn-target-confirm').classList.add('hidden');
+      document.getElementById('uso-step-proteccion').classList.add('hidden');
       return;
     }
 
-    stealablePistas.forEach(pistaKey => {
-      const pInfo = PISTAS_INFO[pistaKey];
+    pistasRobables.forEach(pKey => {
+      const pInfo = PISTAS_INFO[pKey];
       const btn = document.createElement('button');
-      btn.className = 'btn-target-pista';
+      btn.className = 'btn-select-target';
       btn.innerHTML = `${pInfo.icon} Robar ${pInfo.name}`;
       btn.addEventListener('click', () => {
-        pistasGrid.querySelectorAll('.btn-target-pista').forEach(b => b.classList.remove('selected'));
+        grid.querySelectorAll('.btn-select-target').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        selectedPistaToSteal = pistaKey;
-        checkDefenseStep(rival);
+        pistaRoboElegida = pKey;
+        verificarProteccionMazamorra();
       });
-      pistasGrid.appendChild(btn);
+      grid.appendChild(btn);
     });
 
     pistaStep.classList.remove('hidden');
-    document.getElementById('target-defense-step').classList.add('hidden');
-    document.getElementById('btn-target-confirm').classList.add('hidden');
   } else {
     // Ají picante o Desvío
-    document.getElementById('target-pista-step').classList.add('hidden');
-    checkDefenseStep(rival);
+    document.getElementById('uso-step-seleccionar-pista').classList.add('hidden');
+    verificarProteccionMazamorra();
   }
 }
 
-function checkDefenseStep(rival) {
-  const defenseStep = document.getElementById('target-defense-step');
-  const confirmBtn = document.getElementById('btn-target-confirm');
+function verificarProteccionMazamorra() {
+  const rivalTieneMazamorra = rivalElegido.cartas.includes('mazamorra');
+  const proteccionBox = document.getElementById('uso-step-proteccion');
 
-  // Comprobar si el rival tiene Mazamorra morada
-  const hasMazamorra = rival.cards.includes('mazamorra');
-
-  if (hasMazamorra) {
-    defenseStep.classList.remove('hidden');
-    document.getElementById('defense-query-text').innerHTML = `
-      🛡️ <strong>${rival.name}</strong> tiene una carta física de <strong>Mazamorra Morada</strong> en su inventario.<br>
-      ¿Desea usarla para cancelar este efecto por completo?
+  if (rivalTieneMazamorra) {
+    proteccionBox.classList.remove('hidden');
+    document.getElementById('uso-proteccion-texto').innerHTML = `
+      El rival <strong>${rivalElegido.name}</strong> posee la carta física de <strong>Mazamorra Morada</strong>.<br>
+      ¿Desea usarla en este momento para cancelar el efecto de <strong>${cartaElegidaParaUsar.info.name}</strong>?
     `;
 
-    document.getElementById('btn-defense-use').onclick = () => {
-      // Usa mazamorra: se consumen ambas cartas
-      resolveAttackWithDefense(true);
-    };
-
-    document.getElementById('btn-defense-skip').onclick = () => {
-      // No usa mazamorra: se aplica el ataque
-      resolveAttackWithDefense(false);
-    };
-
-    confirmBtn.classList.add('hidden');
+    document.getElementById('btn-defensa-si').onclick = () => aplicarEfectoConDefensa(true);
+    document.getElementById('btn-defensa-no').onclick = () => aplicarEfectoConDefensa(false);
   } else {
-    defenseStep.classList.add('hidden');
-    confirmBtn.classList.remove('hidden');
-    confirmBtn.onclick = () => {
-      resolveAttackWithDefense(false);
-    };
+    proteccionBox.classList.add('hidden');
+    // Aplica directo sin defensa
+    aplicarEfectoConDefensa(false);
   }
 }
 
-function resolveAttackWithDefense(wasDefended) {
-  const activePlayer = getActivePlayer();
-  const rival = selectedTargetRival;
-  const cardId = selectedCardToPlay.cardInfo.id;
-  const cardIdx = selectedCardToPlay.cardIndexInHand;
+function aplicarEfectoConDefensa(seDefendio) {
+  const activo = getJugadorActivo();
+  const rival = rivalElegido;
+  const cId = cartaElegidaParaUsar.id;
 
-  // Consumir la carta del atacante
-  consumeCardFromPlayer(activePlayer, cardIdx);
+  // Consumir carta del atacante
+  descartarCartaAlMazo(activo, cartaElegidaParaUsar.index);
 
-  if (wasDefended) {
-    // Consumir la mazamorra del defensor
-    const mazamorraIdx = rival.cards.indexOf('mazamorra');
-    if (mazamorraIdx !== -1) {
-      consumeCardFromPlayer(rival, mazamorraIdx);
+  if (seDefendio) {
+    // Consumir la mazamorra del rival
+    const mIdx = rival.cartas.indexOf('mazamorra');
+    if (mIdx !== -1) {
+      descartarCartaAlMazo(rival, mIdx);
     }
 
-    playSound('error');
-    addLog(`🛡️ <strong>${rival.name}</strong> utilizó <strong>Mazamorra morada</strong> y canceló el efecto de <strong>${selectedCardToPlay.cardInfo.name}</strong> de <strong>${activePlayer.name}</strong>. ¡Ambas cartas vuelven al mazo!`, 'defense');
-    alert(`🛡️ ¡Ataque Cancelado!\n\n${rival.name} usó su Mazamorra morada para defenderse. El ataque no surte efecto y ambas tarjetas físicas vuelven al pozo.`);
+    registrarLog(`🛡️ <strong>${rival.name}</strong> usó <strong>Mazamorra morada</strong> y canceló el efecto de <strong>${cartaElegidaParaUsar.info.name}</strong> de <strong>${activo.name}</strong>.`);
+    mostrarResultadoUso('🛡️ ¡Efecto Cancelado con Mazamorra!', `${rival.name} se defendió con su Mazamorra morada. Ambas cartas de efectos vuelven al mazo disponible.`);
   } else {
-    // Aplicar el efecto según la carta
-    if (cardId === 'roba_pista') {
-      // Transferir la pista del rival al atacante
-      const pistaKey = selectedPistaToSteal;
-      const rivalPistaIdx = rival.pistas.indexOf(pistaKey);
-      if (rivalPistaIdx !== -1) {
-        rival.pistas.splice(rivalPistaIdx, 1);
-        activePlayer.pistas.push(pistaKey);
+    if (cId === 'roba_pista') {
+      const pKey = pistaRoboElegida;
+      const rIdx = rival.pistas.indexOf(pKey);
+      if (rIdx !== -1) {
+        rival.pistas.splice(rIdx, 1);
+        activo.pistas.push(pKey);
       }
-      playSound('card');
-      addLog(`🥷 <strong>${activePlayer.name}</strong> robó la pista <strong>${PISTAS_INFO[pistaKey].icon} ${PISTAS_INFO[pistaKey].name}</strong> a <strong>${rival.name}</strong>. ¡Entreguen físicamente la tarjeta!`, 'attack');
-      alert(`🥷 ¡Robo Exitoso!\n\n${activePlayer.name} le roba la pista ${PISTAS_INFO[pistaKey].icon} ${PISTAS_INFO[pistaKey].name} a ${rival.name}.\n¡${rival.name} debe entregar su tarjeta física a ${activePlayer.name}!`);
-    } else if (cardId === 'aji_picante') {
-      playSound('card');
-      addLog(`🌶️ <strong>${activePlayer.name}</strong> usó <strong>Ají picante</strong> contra <strong>${rival.name}</strong>: ¡Debe retroceder 2 casillas en el tablero físico!`, 'attack');
-      alert(`🌶️ ¡Ají Picante!\n\n${rival.name} debe retroceder 2 casillas en el tablero físico.`);
-    } else if (cardId === 'desvio') {
-      playSound('card');
-      addLog(`🔀 <strong>${activePlayer.name}</strong> usó <strong>Desvío</strong> con <strong>${rival.name}</strong>: ¡Intercambian sus posiciones en el tablero físico!`, 'attack');
-      alert(`🔀 ¡Desvío!\n\n${activePlayer.name} y ${rival.name} intercambian sus fichas de lugar en el tablero.`);
+      registrarLog(`🥷 <strong>${activo.name}</strong> robó la pista <strong>${PISTAS_INFO[pKey].icon} ${PISTAS_INFO[pKey].name}</strong> a <strong>${rival.name}</strong>.`);
+      mostrarResultadoUso('🥷 ¡Robo Exitoso!', `${activo.name} le roba la pista ${PISTAS_INFO[pKey].icon} ${PISTAS_INFO[pKey].name} a ${rival.name}. ¡${rival.name} debe entregarle la tarjeta física!`);
+    } else if (cId === 'aji_picante') {
+      registrarLog(`🌶️ <strong>${activo.name}</strong> usó <strong>Ají picante</strong>: ¡${rival.name} retrocede 2 casillas en el tablero!`);
+      mostrarResultadoUso('🌶️ ¡Ají Picante Aplicado!', `${rival.name} debe retroceder dos casillas en el tablero físico.`);
+    } else if (cId === 'desvio') {
+      registrarLog(`🔀 <strong>${activo.name}</strong> usó <strong>Desvío</strong> con <strong>${rival.name}</strong>: ¡Intercambian posiciones en el tablero!`);
+      mostrarResultadoUso('🔀 ¡Desvío Aplicado!', `${activo.name} y ${rival.name} deben intercambiar sus fichas en el tablero físico.`);
     }
   }
 
-  closeModal('modal-usar-carta');
-  renderGameDashboard();
-  saveStateToStorage();
+  guardarEstado();
 }
 
-function consumeCardFromPlayer(player, cardIndexInHand) {
-  const cardId = player.cards[cardIndexInHand];
-  player.cards.splice(cardIndexInHand, 1);
-  // Vuelve al mazo de cartas disponibles
-  gameState.effectDeck.push(cardId);
+function descartarCartaAlMazo(jugador, cIdx) {
+  const cId = jugador.cartas[cIdx];
+  jugador.cartas.splice(cIdx, 1);
+  estadoJuego.mazoEfectos.push(cId);
+}
+
+function mostrarResultadoUso(titulo, desc) {
+  document.getElementById('uso-step-seleccionar-carta').classList.add('hidden');
+  document.getElementById('uso-step-seleccionar-rival').classList.add('hidden');
+  document.getElementById('uso-step-seleccionar-pista').classList.add('hidden');
+  document.getElementById('uso-step-proteccion').classList.add('hidden');
+
+  const resBox = document.getElementById('uso-step-resultado');
+  document.getElementById('uso-res-title').textContent = titulo;
+  document.getElementById('uso-res-desc').innerHTML = desc;
+  resBox.classList.remove('hidden');
 }
 
 // ==========================================
-// MODAL: DADO VIRTUAL (1 a 6)
+// PANTALLA 6: FINAL
+// Botón Llegué al Cuy Dorado y comprobación de las tres pistas.
+// La posición se confirma entre los jugadores.
 // ==========================================
 
-let isRollingDice = false;
+function abrirPantallaFinal() {
+  const activo = getJugadorActivo();
 
-function openDiceModal() {
-  playSound('click');
-  const player = getActivePlayer();
-  const diceDisplay = document.getElementById('dice-display');
-  const resultText = document.getElementById('dice-result-text');
-  const incaBox = document.getElementById('inca-kola-reroll-prompt');
+  document.getElementById('final-player-name').textContent = `Explorador: ${activo.name} (${activo.token.name})`;
 
-  diceDisplay.textContent = '🎲';
-  resultText.textContent = '¡Lanza el dado!';
+  // Comprobar las 3 pistas
+  const tieneSol = activo.pistas.includes('Sol');
+  const tieneMontana = activo.pistas.includes('Montana');
+  const tieneRio = activo.pistas.includes('Rio');
 
-  if (player.cards.includes('inca_kola')) {
-    incaBox.classList.remove('hidden');
-    document.getElementById('btn-use-inca-kola-dice').onclick = () => {
-      const idx = player.cards.indexOf('inca_kola');
-      consumeCardFromPlayer(player, idx);
-      addLog(`<strong>${player.name}</strong> usó <strong>Inca Kola</strong> para volver a lanzar el dado.`, 'info');
-      renderGameDashboard();
-      incaBox.classList.add('hidden');
-      rollDice();
-    };
+  const solItem = document.getElementById('check-sol');
+  solItem.className = `pista-check-item ${tieneSol ? 'ok' : 'fail'}`;
+  document.getElementById('chk-sol-status').textContent = tieneSol ? 'Posee ✓' : 'Falta ✗';
+
+  const montanaItem = document.getElementById('check-montana');
+  montanaItem.className = `pista-check-item ${tieneMontana ? 'ok' : 'fail'}`;
+  document.getElementById('chk-montana-status').textContent = tieneMontana ? 'Posee ✓' : 'Falta ✗';
+
+  const rioItem = document.getElementById('check-rio');
+  rioItem.className = `pista-check-item ${tieneRio ? 'ok' : 'fail'}`;
+  document.getElementById('chk-rio-status').textContent = tieneRio ? 'Posee ✓' : 'Falta ✗';
+
+  const tieneTodas = tieneSol && tieneMontana && tieneRio;
+
+  const faltaBox = document.getElementById('final-falta-pistas-box');
+  const confirmBox = document.getElementById('final-confirmacion-posicion-box');
+  const ganadorBox = document.getElementById('final-ganador-box');
+
+  ganadorBox.classList.add('hidden');
+
+  if (!tieneTodas) {
+    const faltantes = [];
+    if (!tieneSol) faltantes.push('Sol ☀️');
+    if (!tieneMontana) faltantes.push('Montaña ⛰️');
+    if (!tieneRio) faltantes.push('Río 🌊');
+
+    faltaBox.classList.remove('hidden');
+    confirmBox.classList.add('hidden');
+    document.getElementById('final-falta-pistas-desc').textContent = `Te falta(n) la(s) siguiente(s) pista(s): ${faltantes.join(', ')}. Debes reunirlas antes de coronarte con el Cuy Dorado.`;
   } else {
-    incaBox.classList.add('hidden');
+    faltaBox.classList.add('hidden');
+    confirmBox.classList.remove('hidden');
   }
 
-  openModal('modal-dado');
+  mostrarPantalla('pantalla-final');
 }
 
-function rollDice() {
-  if (isRollingDice) return;
-  isRollingDice = true;
+function declararGanadorPartida() {
+  const activo = getJugadorActivo();
+  estadoJuego.finalizada = true;
 
-  const diceDisplay = document.getElementById('dice-display');
-  const resultText = document.getElementById('dice-result-text');
-  diceDisplay.classList.add('rolling');
+  registrarLog(`👑🏆 ¡VICTORIA! <strong>${activo.name}</strong> reunió las 3 pistas sagradas y alcanzó al <strong>Cuy Dorado</strong> en el centro.`);
+  guardarEstado();
 
-  let count = 0;
-  const diceFaces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  document.getElementById('final-confirmacion-posicion-box').classList.add('hidden');
+  document.getElementById('final-footer-back').classList.add('hidden');
 
-  const interval = setInterval(() => {
-    playSound('dice');
-    const tempNum = Math.floor(Math.random() * 6);
-    diceDisplay.textContent = diceFaces[tempNum];
-    count++;
-
-    if (count > 8) {
-      clearInterval(interval);
-      diceDisplay.classList.remove('rolling');
-      const finalRoll = Math.floor(Math.random() * 6) + 1;
-      diceDisplay.textContent = diceFaces[finalRoll - 1];
-      resultText.textContent = `¡Sacaste ${finalRoll}!`;
-      isRollingDice = false;
-
-      const player = getActivePlayer();
-      addLog(`🎲 <strong>${player.name}</strong> lanzó el dado y sacó un <strong>${finalRoll}</strong>.`, 'info');
-      saveStateToStorage();
-    }
-  }, 70);
+  const ganadorBox = document.getElementById('final-ganador-box');
+  document.getElementById('winner-name-text').textContent = `¡${activo.name} es el Gran Campeón!`;
+  ganadorBox.classList.remove('hidden');
 }
 
 // ==========================================
-// VICTORIA: ¡LLEGUÉ AL CUY DORADO!
-// ==========================================
-
-function claimCuyDorado() {
-  playSound('click');
-  const player = getActivePlayer();
-
-  // Comprobar si tiene las 3 pistas sagradas
-  const hasAllPistas = PISTAS_KEYS.every(k => player.pistas.includes(k));
-
-  if (!hasAllPistas) {
-    const missing = PISTAS_KEYS.filter(k => !player.pistas.includes(k)).map(k => `${PISTAS_INFO[k].icon} ${PISTAS_INFO[k].name}`);
-    alert(`⚠️ ¡Aún no puedes coronarte con el Cuy Dorado!\n\nTe falta(n) la(s) siguiente(s) pista(s) sagrada(s):\n- ${missing.join('\n- ')}\n\nDebes responder preguntas correctamente en el tablero o usar cartas como 'Roba una pista' para conseguirlas.`);
-    return;
-  }
-
-  // Confirmar si físicamente llegó al centro del tablero
-  const confirmArrival = confirm(`👑 ¡ATENCIÓN EXPLORADOR!\n\n${player.name} posee las 3 pistas sagradas (Sol ☀️, Montaña ⛰️ y Río 🌊).\n\n¿Todos los jugadores confirman que su ficha 3D de ${player.token.name} ha llegado al centro del tablero donde descansa el Cuy Dorado?`);
-
-  if (!confirmArrival) {
-    return;
-  }
-
-  // Declarar Victoria
-  gameState.isFinished = true;
-  gameState.winner = player;
-
-  playSound('victory');
-  addLog(`👑🏆 ¡VICTORIA! <strong>${player.name}</strong> ha reunido las 3 pistas sagradas y alcanzado al majestuoso <strong>Cuy Dorado</strong>. ¡Es el Campeón Absoluto del Perú!`, 'pista');
-
-  document.getElementById('winner-name-announce').textContent = `¡${player.name} es el Gran Campeón!`;
-  document.getElementById('winner-details-announce').innerHTML = `
-    Ficha: <strong>${player.token.icon} ${player.token.name}</strong> (${player.token.colorName})<br>
-    ¡Consiguió el Sol ☀️, la Montaña ⛰️ y el Río 🌊 y coronó la cima del Cuy Dorado!
-  `;
-
-  document.getElementById('victory-summary-box').innerHTML = `
-    <strong>Resumen final de la partida:</strong><br>
-    ${gameState.players.map(p => `• ${p.token.icon} <strong>${p.name}</strong>: ${p.pistas.length}/3 pistas &bull; ${p.cards.length} cartas`).join('<br>')}
-  `;
-
-  saveStateToStorage();
-  openModal('modal-victoria');
-}
-
-// ==========================================
-// UTILIDADES PARA MODALES
-// ==========================================
-
-function openModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) {
-    modal.classList.remove('hidden');
-  }
-}
-
-function closeModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) {
-    modal.classList.add('hidden');
-  }
-}
-
-// ==========================================
-// EVENT LISTENERS PRINCIPALES
+// EVENT LISTENERS GLOBALES
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Selector de número de jugadores (2, 3, 4)
+  // Selector de cantidad de jugadores en Pantalla 1
   document.querySelectorAll('.btn-count').forEach(btn => {
     btn.addEventListener('click', () => {
-      playSound('click');
       document.querySelectorAll('.btn-count').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const count = parseInt(btn.dataset.count, 10);
-      renderSetupForm(count);
+      renderizarPantallaInicio(count);
     });
   });
 
-  // Botón Comenzar Partida
-  document.getElementById('btn-start-game').addEventListener('click', startNewGame);
+  // Botón Iniciar Partida en Pantalla 1
+  document.getElementById('btn-iniciar-partida').addEventListener('click', iniciarPartidaDesdeInicio);
 
-  // Botón Reanudar Partida Guardada
-  document.getElementById('btn-resume-game').addEventListener('click', resumeSavedGame);
-  document.getElementById('btn-dismiss-resume').addEventListener('click', () => {
-    clearStorage();
-    document.getElementById('resume-banner').classList.add('hidden');
+  // Botones de Navegación de Pantalla 2 (Partida)
+  document.getElementById('btn-ir-pregunta').addEventListener('click', abrirPantallaPregunta);
+  document.getElementById('btn-ir-sorpresa').addEventListener('click', abrirPantallaSorpresa);
+  document.getElementById('btn-ir-usar-carta').addEventListener('click', abrirPantallaUsoCartas);
+  document.getElementById('btn-ir-final').addEventListener('click', abrirPantallaFinal);
+  document.getElementById('btn-terminar-turno').addEventListener('click', terminarTurno);
+
+  // Botones de Regreso a la Partida
+  document.getElementById('btn-volver-partida-pregunta').addEventListener('click', () => {
+    renderizarPantallaPartida();
+    mostrarPantalla('pantalla-partida');
   });
 
-  // Botón Reiniciar / Nueva Partida
-  document.getElementById('btn-restart-game').addEventListener('click', restartGamePrompt);
-  document.getElementById('btn-new-game-victory').addEventListener('click', () => {
-    closeModal('modal-victoria');
-    clearStorage();
-    showSetupScreen();
+  document.getElementById('btn-volver-partida-uso').addEventListener('click', () => {
+    renderizarPantallaPartida();
+    mostrarPantalla('pantalla-partida');
   });
 
-  // Botón Sonido
-  const soundBtn = document.getElementById('btn-sound-toggle');
-  soundBtn.addEventListener('click', () => {
-    soundEnabled = !soundEnabled;
-    soundBtn.textContent = soundEnabled ? '🔊' : '🔇';
-    soundBtn.title = soundEnabled ? 'Sonido activado' : 'Sonido desactivado';
-    playSound('click');
+  document.getElementById('btn-volver-partida-final').addEventListener('click', () => {
+    renderizarPantallaPartida();
+    mostrarPantalla('pantalla-partida');
   });
 
-  // Botón Reglas
-  document.getElementById('btn-show-rules').addEventListener('click', () => {
-    playSound('click');
-    openModal('modal-reglas');
+  // Confirmación de posición en Pantalla 6 (Final)
+  document.getElementById('btn-confirmar-llegada-si').addEventListener('click', declararGanadorPartida);
+  document.getElementById('btn-confirmar-llegada-no').addEventListener('click', () => {
+    renderizarPantallaPartida();
+    mostrarPantalla('pantalla-partida');
   });
 
-  // Botones de Acción del Turno
-  document.getElementById('btn-action-pregunta').addEventListener('click', openQuestionModal);
-  document.getElementById('btn-action-sorpresa').addEventListener('click', openSurpriseModal);
-  document.getElementById('btn-action-usar-carta').addEventListener('click', openUseCardModal);
-  document.getElementById('btn-action-dado').addEventListener('click', openDiceModal);
-  document.getElementById('btn-roll-dice').addEventListener('click', rollDice);
-
-  // Reclamo del Cuy Dorado
-  document.getElementById('btn-claim-cuy').addEventListener('click', claimCuyDorado);
-
-  // Terminar Turno
-  document.getElementById('btn-end-turn').addEventListener('click', nextTurn);
-
-  // Botón Limpiar Log
-  document.getElementById('btn-clear-log').addEventListener('click', () => {
-    gameState.logs = [];
-    renderLogs();
-    saveStateToStorage();
+  // Nueva Partida
+  document.getElementById('btn-global-nueva-partida').addEventListener('click', () => {
+    if (confirm('¿Deseas iniciar una nueva partida? Se reiniciarán los datos actuales.')) {
+      reiniciarPartidaStorage();
+      renderizarPantallaInicio(3);
+      mostrarPantalla('pantalla-inicio');
+    }
   });
 
-  // Botón Cerrar Pregunta Aceptar
-  document.getElementById('btn-q-confirm').addEventListener('click', () => {
-    closeModal('modal-pregunta');
-    renderGameDashboard();
+  document.getElementById('btn-final-nueva-partida').addEventListener('click', () => {
+    reiniciarPartidaStorage();
+    renderizarPantallaInicio(3);
+    mostrarPantalla('pantalla-inicio');
   });
 
-  // Cancelar en selección de objetivo de carta
-  document.getElementById('btn-target-cancel').addEventListener('click', () => {
-    document.getElementById('usar-carta-target-view').classList.add('hidden');
-    document.getElementById('usar-carta-list-view').classList.remove('hidden');
-    document.getElementById('modal-usar-footer').classList.remove('hidden');
-  });
-
-  // Cierre genérico de modales con botones data-close
-  document.querySelectorAll('[data-close]').forEach(el => {
-    el.addEventListener('click', () => {
-      playSound('click');
-      closeModal(el.dataset.close);
-    });
-  });
-
-  // Cerrar modal al hacer clic en el backdrop oscuro
-  document.querySelectorAll('.modal-overlay').forEach(modal => {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        closeModal(modal.id);
-      }
-    });
-  });
-
-  // Comprobar estado inicial
-  const saved = loadStateFromStorage();
-  if (saved && saved.isStarted && !saved.isFinished) {
-    gameState = saved;
-    showGameScreen();
+  // Cargar estado previo o mostrar inicio
+  const guardado = cargarEstado();
+  if (guardado && guardado.iniciada && !guardado.finalizada) {
+    estadoJuego = guardado;
+    renderizarPantallaPartida();
+    mostrarPantalla('pantalla-partida');
   } else {
-    showSetupScreen();
+    renderizarPantallaInicio(3);
+    mostrarPantalla('pantalla-inicio');
   }
 });

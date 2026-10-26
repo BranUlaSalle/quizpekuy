@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tarjetas Imprimibles - En busca del Cuy Dorado</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* CSS para pantalla e impresión */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      padding: 20px;
+    }
+
+    .no-print-bar {
+      max-width: 1000px;
+      margin: 0 auto 20px;
+      background: #fff;
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .no-print-bar h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3rem;
+      color: #78350f;
+    }
+
+    .print-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-print {
+      background: #d97706;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .btn-print:hover { background: #b45309; }
+
+    .btn-back {
+      background: #e2e8f0;
+      color: #334155;
+      text-decoration: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .print-page {
+      max-width: 1000px;
+      margin: 0 auto 30px;
+      background: #fff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .section-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.2rem;
+      color: #9a3412;
+      border-bottom: 2px solid #fed7aa;
+      padding-bottom: 6px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .section-desc {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 16px;
+    }
+
+    /* Medidas exactas oficiales: 6 cm de ancho x 9 cm de alto */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 6cm);
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .card-item {
+      width: 6cm;
+      height: 9cm;
+      border: 2px dashed #94a3b8;
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 6px;
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      border: 2px solid #d4af37;
+      position: relative;
+    }
+
+    /* Estilos Tarjetas de Pistas */
+    .card-pista-sol .card-inner {
+      background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+      border-color: #f59e0b;
+    }
+    .card-pista-montana .card-inner {
+      background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+      border-color: #16a34a;
+    }
+    .card-pista-rio .card-inner {
+      background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+      border-color: #2563eb;
+    }
+
+    .card-badge {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #fff;
+    }
+    .badge-pista { background: #9a3412; }
+    .badge-efecto { background: #701a75; }
+
+    .card-pista-symbol {
+      font-size: 3.2rem;
+      margin: 8px 0;
+    }
+
+    .card-pista-name {
+      font-family: 'Cinzel', serif;
+      font-size: 1.15rem;
+      font-weight: 900;
+      color: #451a03;
+    }
+
+    .card-game-brand {
+      font-size: 0.62rem;
+      font-weight: 800;
+      color: #78716c;
+      letter-spacing: 0.5px;
+    }
+
+    /* Estilos Tarjetas de Efectos */
+    .card-efecto .card-inner {
+      background: #fffdfa;
+      border-color: #ea580c;
+    }
+
+    .card-efecto-icon {
+      font-size: 2.2rem;
+      margin: 4px 0;
+    }
+
+    .card-efecto-name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: #9a3412;
+      line-height: 1.1;
+    }
+
+    .card-efecto-desc {
+      font-size: 0.72rem;
+      line-height: 1.35;
+      color: #334155;
+      font-weight: 700;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      padding: 6px 4px;
+      width: 100%;
+    }
+
+    /* Reglas para imprimir */
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+      }
+      .no-print-bar {
+        display: none !important;
+      }
+      .print-page {
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+      }
+      .cards-grid {
+        gap: 6px;
+      }
+      .page-break {
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print-bar">
+    <div>
+      <h1>🐹 Tarjetas Oficiales (6 × 9 cm)</h1>
+      <p style="font-size: 0.85rem; color: #64748b;">
+        Listas para imprimir en papel o cartulina A4. Contiene las 12 pistas y las 14 cartas de efectos.
+      </p>
+    </div>
+    <div class="print-actions">
+      <a href="index.html" class="btn-back">⬅ Volver a la App</a>
+      <button onclick="window.print()" class="btn-print">🖨️ Imprimir Tarjetas</button>
+    </div>
+  </div>
+
+  <!-- PÁGINA 1: TARJETAS DE PISTAS SAGRADAS (12 TARJETAS) -->
+  <div class="print-page page-break">
+    <div class="section-title">
+      <span>☀️ Pistas Sagradas (12 Tarjetas: 4 Sol, 4 Montaña, 4 Río)</span>
+      <span style="font-size: 0.8rem; font-family: sans-serif; color: #64748b;">Medida: 6 × 9 cm</span>
+    </div>
+    <p class="section-desc">Recorta por las líneas punteadas. Cada jugador debe reunir una de cada una.</p>
+
+    <div class="cards-grid">
+      <!-- 4 SOL -->
+      <div class="card-item card-pista-sol">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">☀️</div>
+          <div class="card-pista-name">SOL</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-sol">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">☀️</div>
+          <div class="card-pista-name">SOL</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-sol">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">☀️</div>
+          <div class="card-pista-name">SOL</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-sol">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">☀️</div>
+          <div class="card-pista-name">SOL</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 4 MONTAÑA -->
+      <div class="card-item card-pista-montana">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">⛰️</div>
+          <div class="card-pista-name">MONTAÑA</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-montana">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">⛰️</div>
+          <div class="card-pista-name">MONTAÑA</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-montana">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">⛰️</div>
+          <div class="card-pista-name">MONTAÑA</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-montana">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">⛰️</div>
+          <div class="card-pista-name">MONTAÑA</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 4 RÍO -->
+      <div class="card-item card-pista-rio">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">🌊</div>
+          <div class="card-pista-name">RÍO</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-rio">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">🌊</div>
+          <div class="card-pista-name">RÍO</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-rio">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">🌊</div>
+          <div class="card-pista-name">RÍO</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-pista-rio">
+        <div class="card-inner">
+          <span class="card-badge badge-pista">PISTA SAGRADA</span>
+          <div class="card-pista-symbol">🌊</div>
+          <div class="card-pista-name">RÍO</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PÁGINA 2: CARTAS DE EFECTOS (14 TARJETAS: 2 COPIAS DE CADA UNO) -->
+  <div class="print-page">
+    <div class="section-title">
+      <span>🃏 Cartas de Efecto (14 Tarjetas: 2 copias de cada una)</span>
+      <span style="font-size: 0.8rem; font-family: sans-serif; color: #64748b;">Medida: 6 × 9 cm</span>
+    </div>
+    <p class="section-desc">Se sortean al caer en casillas Sorpresa en la app web. Máximo 2 en mano por jugador.</p>
+
+    <div class="cards-grid">
+      <!-- 2 CEVICHE -->
+      <div class="card-item card-efecto">
+        <div class="card-inner">
+          <span class="card-badge badge-efecto">COMIDA / MOVIMIENTO</span>
+          <div class="card-efecto-icon">🍲</div>
+          <div class="card-efecto-name">CEVICHE</div>
+          <div class="card-efecto-desc">Lanza el dado y realiza un movimiento extra (no activa casilla).</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner">
+          <span class="card-badge badge-efecto">COMIDA / MOVIMIENTO</span>
+          <div class="card-efecto-icon">🍲</div>
+          <div class="card-efecto-name">CEVICHE</div>
+          <div class="card-efecto-desc">Lanza el dado y realiza un movimiento extra (no activa casilla).</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 2 POLLO A LA BRASA -->
+      <div class="card-item card-efecto">
+        <div class="card-inner">
+          <span class="card-badge badge-efecto">COMIDA / SABIDURÍA</span>
+          <div class="card-efecto-icon">🍗</div>
+          <div class="card-efecto-name">POLLO A LA BRASA</div>
+          <div class="card-efecto-desc">Responde una pregunta adicional para intentar obtener una pista.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner">
+          <span class="card-badge badge-efecto">COMIDA / SABIDURÍA</span>
+          <div class="card-efecto-icon">🍗</div>
+          <div class="card-efecto-name">POLLO A LA BRASA</div>
+          <div class="card-efecto-desc">Responde una pregunta adicional para intentar obtener una pista.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 2 MAZAMORRA MORADA -->
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #701a75; background: #fdf4ff;">
+          <span class="card-badge" style="background: #701a75;">DEFENSA / REACCIÓN</span>
+          <div class="card-efecto-icon">🥣</div>
+          <div class="card-efecto-name" style="color: #701a75;">MAZAMORRA MORADA</div>
+          <div class="card-efecto-desc">Cancela un robo o sabotaje contra ti (se descarta al defender).</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #701a75; background: #fdf4ff;">
+          <span class="card-badge" style="background: #701a75;">DEFENSA / REACCIÓN</span>
+          <div class="card-efecto-icon">🥣</div>
+          <div class="card-efecto-name" style="color: #701a75;">MAZAMORRA MORADA</div>
+          <div class="card-efecto-desc">Cancela un robo o sabotaje contra ti (se descarta al defender).</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 2 INCA KOLA -->
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #eab308; background: #fefce8;">
+          <span class="card-badge" style="background: #ca8a04;">SUERTE / DADO</span>
+          <div class="card-efecto-icon">🥤</div>
+          <div class="card-efecto-name" style="color: #854d0e;">INCA KOLA</div>
+          <div class="card-efecto-desc">Repite tu lanzamiento y utiliza el nuevo resultado.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #eab308; background: #fefce8;">
+          <span class="card-badge" style="background: #ca8a04;">SUERTE / DADO</span>
+          <div class="card-efecto-icon">🥤</div>
+          <div class="card-efecto-name" style="color: #854d0e;">INCA KOLA</div>
+          <div class="card-efecto-desc">Repite tu lanzamiento y utiliza el nuevo resultado.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 2 ROBA UNA PISTA -->
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #dc2626; background: #fef2f2;">
+          <span class="card-badge" style="background: #dc2626;">ATAQUE DIRECTO</span>
+          <div class="card-efecto-icon">🥷</div>
+          <div class="card-efecto-name" style="color: #991b1b;">ROBA UNA PISTA</div>
+          <div class="card-efecto-desc">Toma de un rival una pista que te falte (el rival debe entregártela).</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #dc2626; background: #fef2f2;">
+          <span class="card-badge" style="background: #dc2626;">ATAQUE DIRECTO</span>
+          <div class="card-efecto-icon">🥷</div>
+          <div class="card-efecto-name" style="color: #991b1b;">ROBA UNA PISTA</div>
+          <div class="card-efecto-desc">Toma de un rival una pista que te falte (el rival debe entregártela).</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 2 AJÍ PICANTE -->
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #ea580c; background: #fff7ed;">
+          <span class="card-badge" style="background: #ea580c;">SABOTAJE</span>
+          <div class="card-efecto-icon">🌶️</div>
+          <div class="card-efecto-name" style="color: #9a3412;">AJÍ PICANTE</div>
+          <div class="card-efecto-desc">Haz retroceder dos casillas a un rival en el tablero.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #ea580c; background: #fff7ed;">
+          <span class="card-badge" style="background: #ea580c;">SABOTAJE</span>
+          <div class="card-efecto-icon">🌶️</div>
+          <div class="card-efecto-name" style="color: #9a3412;">AJÍ PICANTE</div>
+          <div class="card-efecto-desc">Haz retroceder dos casillas a un rival en el tablero.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+
+      <!-- 2 DESVÍO -->
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #0284c7; background: #f0f9ff;">
+          <span class="card-badge" style="background: #0284c7;">ESTRATEGIA</span>
+          <div class="card-efecto-icon">🔀</div>
+          <div class="card-efecto-name" style="color: #0369a1;">DESVÍO</div>
+          <div class="card-efecto-desc">Intercambia tu posición con otro jugador que esté en los caminos.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+      <div class="card-item card-efecto">
+        <div class="card-inner" style="border-color: #0284c7; background: #f0f9ff;">
+          <span class="card-badge" style="background: #0284c7;">ESTRATEGIA</span>
+          <div class="card-efecto-icon">🔀</div>
+          <div class="card-efecto-name" style="color: #0369a1;">DESVÍO</div>
+          <div class="card-efecto-desc">Intercambia tu posición con otro jugador que esté en los caminos.</div>
+          <div class="card-game-brand">EN BUSCA DEL CUY DORADO</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
