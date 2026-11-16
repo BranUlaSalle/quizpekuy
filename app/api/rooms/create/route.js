@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, isUsingMemory, memoryStore, BANCO_PREGUNTAS } from "../../../lib/db";
-
+import { query, isUsingMemory, memoryStore, obtenerPreguntasPorCategoria } from "../../../lib/db";
 
 function generateCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -8,17 +7,34 @@ function generateCode() {
 
 export async function POST(request) {
   try {
-    const { userId, cantidadPreguntas } = await request.json();
+    const { userId, userName, userFoto, cantidadPreguntas, categoria = "cultura_peruana" } = await request.json();
 
     if (!userId) {
       return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
     }
 
     const cantidad = Math.min(Math.max(parseInt(cantidadPreguntas) || 25, 1), 50);
+    const resolvedName = userName || "Explorador";
 
-    // Shuffle and pick questions for the room
-    const shuffled = [...BANCO_PREGUNTAS].sort(() => 0.5 - Math.random());
-    const roomQuestions = shuffled.slice(0, cantidad).map((q, idx) => ({
+    // Ensure user is in memoryStore
+    const existingU = memoryStore.usuarios.find(u => u.id_usuario === userId);
+    if (existingU) {
+      if (userName) existingU.nombre = userName;
+      if (userFoto) existingU.foto = userFoto;
+    } else {
+      memoryStore.usuarios.push({
+        id_usuario: userId,
+        nombre: resolvedName,
+        email: "",
+        foto: userFoto || null,
+        auth_provider: 'google',
+        es_primera_vez: false,
+      });
+    }
+
+    // Get questions from selected category
+    const categoryQuestions = obtenerPreguntasPorCategoria(categoria, cantidad);
+    const roomQuestions = categoryQuestions.map((q, idx) => ({
       numero: idx + 1,
       texto: q.texto,
       alternativa_a: q.alternativas[0],
@@ -26,15 +42,16 @@ export async function POST(request) {
       alternativa_c: q.alternativas[2],
       alternativa_d: q.alternativas[3],
       respuesta_correcta: q.correcta,
-      asignada_a: idx === 0 ? userId : null, // Question #1 assigned to creator
+      asignada_a: null,
     }));
 
+    // Memory Store path (always available and instant)
     if (isUsingMemory()) {
       let codigo;
       let attempts = 0;
       while (attempts < 100) {
         codigo = generateCode();
-        const existing = memoryStore.salas.find(s => s.codigo === codigo && s.estado === 'esperando');
+        const existing = memoryStore.salas.find(s => s.codigo === codigo && (s.estado === 'esperando' || s.estado === 'jugando'));
         if (!existing) break;
         attempts++;
       }
@@ -44,16 +61,27 @@ export async function POST(request) {
         id: salaId,
         codigo,
         creador_id: userId,
+        creador_nombre: resolvedName,
         cantidad_preguntas: cantidad,
+        categoria,
         estado: 'esperando',
+        turno_actual: userId,
+        pregunta_activa: null,
+        alerta_robo: null,
+        ganador: null,
+        tiempo_fin: null,
+        indice_pregunta: 0,
       };
       memoryStore.salas.push(sala);
 
-      // Add creator as player
+      // Add creator as player with resolved name and photo
       memoryStore.salaJugadores.push({
         sala_id: salaId,
         usuario_id: userId,
+        nombre: resolvedName,
+        foto: userFoto || null,
         turno_pregunta: 1,
+        cartas: { sol: 0, rio: 0, montana: 0 },
       });
 
       // Save questions with room
@@ -69,50 +97,71 @@ export async function POST(request) {
           id: salaId,
           codigo,
           cantidadPreguntas: cantidad,
+          categoria,
+          creadorId: userId,
+          creadorNombre: resolvedName,
         },
       });
     }
 
-    // PostgreSQL path
-    let codigo;
-    let attempts = 0;
-    while (attempts < 100) {
-      codigo = generateCode();
-      const existing = await query(
-        "SELECT id FROM salas WHERE codigo = $1 AND estado = 'esperando'",
-        [codigo]
-      );
-      if (existing.rows.length === 0) break;
-      attempts++;
-    }
-
+    // PostgreSQL path (if PostgreSQL is running)
+    let codigo = generateCode();
     const result = await query(
       `INSERT INTO salas (codigo, creador_id, cantidad_preguntas, estado) 
        VALUES ($1, $2, $3, 'esperando') RETURNING id, codigo, cantidad_preguntas`,
       [codigo, userId, cantidad]
     );
 
-    const sala = result.rows[0];
+    if (result && result.rows && result.rows.length > 0) {
+      const sala = result.rows[0];
 
-    await query(
-      `INSERT INTO sala_jugadores (sala_id, usuario_id, turno_pregunta) VALUES ($1, $2, 1)`,
-      [sala.id, userId]
-    );
-
-    // Insert questions
-    for (const q of roomQuestions) {
       await query(
-        `INSERT INTO preguntas (sala_id, numero, texto, alternativa_a, alternativa_b, alternativa_c, alternativa_d, respuesta_correcta, asignada_a)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [sala.id, q.numero, q.texto, q.alternativa_a, q.alternativa_b, q.alternativa_c, q.alternativa_d, q.respuesta_correcta, q.asignada_a]
+        `INSERT INTO sala_jugadores (sala_id, usuario_id, turno_pregunta) VALUES ($1, $2, 1)`,
+        [sala.id, userId]
       );
+
+      return NextResponse.json({
+        sala: {
+          id: sala.id,
+          codigo: sala.codigo,
+          cantidadPreguntas: sala.cantidad_preguntas,
+          categoria,
+          creadorId: userId,
+          creadorNombre: resolvedName,
+        },
+      });
     }
+
+    // Fallback if Postgres query returned empty
+    const salaId = memoryStore.salaIdCounter++;
+    const sala = {
+      id: salaId,
+      codigo,
+      creador_id: userId,
+      creador_nombre: resolvedName,
+      cantidad_preguntas: cantidad,
+      categoria,
+      estado: 'esperando',
+      turno_actual: userId,
+    };
+    memoryStore.salas.push(sala);
+    memoryStore.salaJugadores.push({
+      sala_id: salaId,
+      usuario_id: userId,
+      nombre: resolvedName,
+      foto: userFoto || null,
+      turno_pregunta: 1,
+      cartas: { sol: 0, rio: 0, montana: 0 },
+    });
 
     return NextResponse.json({
       sala: {
-        id: sala.id,
-        codigo: sala.codigo,
-        cantidadPreguntas: sala.cantidad_preguntas,
+        id: salaId,
+        codigo,
+        cantidadPreguntas: cantidad,
+        categoria,
+        creadorId: userId,
+        creadorNombre: resolvedName,
       },
     });
   } catch (err) {

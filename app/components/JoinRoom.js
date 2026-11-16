@@ -75,6 +75,8 @@ export default function JoinRoom({ user, onRoomJoined, onBack }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          userName: user.name,
+          userFoto: user.picture,
           codigo: fullCode,
         }),
       });

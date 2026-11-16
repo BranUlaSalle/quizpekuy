@@ -5,8 +5,16 @@ import CuyDorado from "./CuyDorado";
 
 const PRESET_OPTIONS = [10, 25, 30, 40, 50];
 
+const CATEGORIAS_LISTA = [
+  { id: "cultura_peruana", nombre: "Cultura Peruana", emoji: "🇵🇪", desc: "Historia, tradiciones y gastronomía" },
+  { id: "doble_sentido", nombre: "Doble sentido", emoji: "😏🔥", desc: "Humor pícaro y preguntas capciosas" },
+  { id: "cotidiano", nombre: "Cotidiano", emoji: "☕", desc: "Sentido común y vida diaria" },
+  { id: "animales", nombre: "Animales", emoji: "🐾", desc: "Fauna, récords y curiosidades" },
+];
+
 export default function CreateRoom({ user, onRoomCreated, onBack }) {
   const [selectedCount, setSelectedCount] = useState(25); // Default is 25 as requested
+  const [selectedCategory, setSelectedCategory] = useState("cultura_peruana"); // Default category
   const [isCustom, setIsCustom] = useState(false);
   const [customValue, setCustomValue] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,7 +57,10 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          userName: user.name,
+          userFoto: user.picture,
           cantidadPreguntas: selectedCount,
+          categoria: selectedCategory,
         }),
       });
 
@@ -71,6 +82,8 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
       setTimeout(() => setCopied(false), 2000);
     }
   }
+
+  const catObj = CATEGORIAS_LISTA.find(c => c.id === (createdSala?.categoria || selectedCategory));
 
   // Room created confirmation view
   if (createdSala) {
@@ -102,16 +115,18 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
 
           <div className="room-specs-list">
             <div className="spec-item">
+              <span className="spec-label">Categoría:</span>
+              <span className="spec-val" style={{ color: "var(--gold-accent)" }}>
+                {catObj?.emoji} {catObj?.nombre}
+              </span>
+            </div>
+            <div className="spec-item">
               <span className="spec-label">Preguntas:</span>
               <span className="spec-val">{createdSala.cantidadPreguntas}</span>
             </div>
             <div className="spec-item">
               <span className="spec-label">Capacidad:</span>
               <span className="spec-val">Máx. 4 jugadores</span>
-            </div>
-            <div className="spec-item">
-              <span className="spec-label">Estado:</span>
-              <span className="spec-val status-waiting">Esperando jugadores</span>
             </div>
           </div>
 
@@ -137,11 +152,36 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
           </div>
           <h1 className="config-title">CREAR NUEVA SALA</h1>
           <p className="config-subtitle">
-            Elige la cantidad de preguntas para tu partida de quiz
+            Personaliza tu partida de quiz con el Cuy Dorado
           </p>
         </div>
 
         <div className="config-body">
+          {/* Categoría de Preguntas */}
+          <div className="section-title-row" style={{ marginTop: "6px" }}>
+            <span className="section-title">Temática de preguntas</span>
+          </div>
+
+          <div className="category-select-grid">
+            {CATEGORIAS_LISTA.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                className={`category-pill ${selectedCategory === cat.id ? "cat-selected" : ""}`}
+                onClick={() => setSelectedCategory(cat.id)}
+              >
+                <span className="cat-emoji">{cat.emoji}</span>
+                <div className="cat-texts">
+                  <span className="cat-name">{cat.nombre}</span>
+                  <span className="cat-desc">{cat.desc}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="welcome-divider" style={{ margin: "16px 0 14px" }}></div>
+
+          {/* Cantidad de preguntas */}
           <div className="section-title-row">
             <span className="section-title">Cantidad de preguntas</span>
             <span className="current-count-badge">{selectedCount} preguntas</span>
@@ -156,7 +196,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
                 className={`preset-pill ${!isCustom && selectedCount === num ? "preset-selected" : ""}`}
                 onClick={() => handleSelectPreset(num)}
               >
-                {num} preguntas {num === 25 ? "(Por defecto)" : ""}
+                <span>{num} preguntas {num === 25 ? "(Por defecto)" : ""}</span>
               </button>
             ))}
 
@@ -169,7 +209,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
                 if (!customValue) setCustomValue(String(selectedCount));
               }}
             >
-              Personalizado
+              <span>Personalizado (1 a 50)</span>
             </button>
           </div>
 
@@ -198,12 +238,12 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
 
           <div className="config-info-note">
             <span className="info-icon">ℹ</span>
-            <span>Por defecto son 25 preguntas, pero puedes elegir hasta un máximo de 50. La sala soportará hasta 4 jugadores simultáneos.</span>
+            <span>Por defecto son 25 preguntas. Podrán unirse hasta 4 jugadores y se requerirán al menos 2 para iniciar la partida.</span>
           </div>
         </div>
 
         {error && (
-          <div className="login-error-msg" style={{ margin: "16px 0 0" }}>
+          <div className="login-error-msg" style={{ margin: "14px 0 0" }}>
             <span className="error-icon">⚠️</span>
             <span>{error}</span>
           </div>
@@ -220,7 +260,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
             {loading ? (
               <span className="btn-spinner-content">
                 <span className="btn-spinner"></span>
-                <span>Generando código y sala...</span>
+                <span>Generando sala con preguntas...</span>
               </span>
             ) : (
               "Crear sala de juego"

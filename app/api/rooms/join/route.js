@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { query, isUsingMemory, memoryStore } from "../../../lib/db";
 
-
 export async function POST(request) {
   try {
-    const { userId, codigo } = await request.json();
+    const { userId, userName, userFoto, codigo } = await request.json();
 
     if (!userId) {
       return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 });
@@ -15,11 +14,28 @@ export async function POST(request) {
     }
 
     const cleanCode = String(codigo).trim();
+    const resolvedName = userName || "Explorador";
+
+    // Ensure user is in memoryStore
+    const existingU = memoryStore.usuarios.find(u => u.id_usuario === userId);
+    if (existingU) {
+      if (userName) existingU.nombre = userName;
+      if (userFoto) existingU.foto = userFoto;
+    } else {
+      memoryStore.usuarios.push({
+        id_usuario: userId,
+        nombre: resolvedName,
+        email: "",
+        foto: userFoto || null,
+        auth_provider: 'google',
+        es_primera_vez: false,
+      });
+    }
 
     if (isUsingMemory()) {
-      const sala = memoryStore.salas.find(s => s.codigo === cleanCode && s.estado === 'esperando');
+      const sala = memoryStore.salas.find(s => s.codigo === cleanCode && (s.estado === 'esperando' || s.estado === 'jugando'));
       if (!sala) {
-        return NextResponse.json({ error: "Sala no encontrada o la partida ya comenzó" }, { status: 404 });
+        return NextResponse.json({ error: "Sala no encontrada o el código es inválido" }, { status: 404 });
       }
 
       const playersInRoom = memoryStore.salaJugadores.filter(sj => sj.sala_id === sala.id);
@@ -34,15 +50,14 @@ export async function POST(request) {
         memoryStore.salaJugadores.push({
           sala_id: sala.id,
           usuario_id: userId,
+          nombre: resolvedName,
+          foto: userFoto || null,
           turno_pregunta: nextSlot,
+          cartas: { sol: 0, rio: 0, montana: 0 },
         });
-
-        // Assign next unassigned question to this player
-        const roomQs = memoryStore.preguntas.filter(q => q.sala_id === sala.id);
-        const unassignedQ = roomQs.find(q => !q.asignada_a);
-        if (unassignedQ) {
-          unassignedQ.asignada_a = userId;
-        }
+      } else {
+        if (userName) alreadyJoined.nombre = userName;
+        if (userFoto) alreadyJoined.foto = userFoto;
       }
 
       return NextResponse.json({
@@ -50,7 +65,10 @@ export async function POST(request) {
           id: sala.id,
           codigo: sala.codigo,
           cantidadPreguntas: sala.cantidad_preguntas,
+          categoria: sala.categoria || "cultura_peruana",
           creadorId: sala.creador_id,
+          creadorNombre: sala.creador_nombre || "Anfitrión",
+          estado: sala.estado,
         },
         message: alreadyJoined ? "Ya estás en esta sala" : undefined,
       });
@@ -58,12 +76,12 @@ export async function POST(request) {
 
     // PostgreSQL path
     const salaResult = await query(
-      "SELECT id, codigo, creador_id, cantidad_preguntas, estado FROM salas WHERE codigo = $1 AND estado = 'esperando'",
+      "SELECT id, codigo, creador_id, cantidad_preguntas, estado FROM salas WHERE codigo = $1 AND estado IN ('esperando', 'jugando')",
       [cleanCode]
     );
 
     if (salaResult.rows.length === 0) {
-      return NextResponse.json({ error: "Sala no encontrada o la partida ya comenzó" }, { status: 404 });
+      return NextResponse.json({ error: "Sala no encontrada o el código es inválido" }, { status: 404 });
     }
 
     const sala = salaResult.rows[0];
@@ -90,13 +108,6 @@ export async function POST(request) {
         `INSERT INTO sala_jugadores (sala_id, usuario_id, turno_pregunta) VALUES ($1, $2, $3)`,
         [sala.id, userId, nextSlot]
       );
-
-      // Assign question
-      await query(
-        `UPDATE preguntas SET asignada_a = $1 
-         WHERE id = (SELECT id FROM preguntas WHERE sala_id = $2 AND asignada_a IS NULL ORDER BY numero ASC LIMIT 1)`,
-        [userId, sala.id]
-      );
     }
 
     return NextResponse.json({
@@ -105,6 +116,7 @@ export async function POST(request) {
         codigo: sala.codigo,
         cantidadPreguntas: sala.cantidad_preguntas,
         creadorId: sala.creador_id,
+        estado: sala.estado,
       },
     });
   } catch (err) {

@@ -7,9 +7,10 @@ import WelcomeScreen from "./components/WelcomeScreen";
 import CreateRoom from "./components/CreateRoom";
 import JoinRoom from "./components/JoinRoom";
 import Lobby from "./components/Lobby";
+import GameScreen from "./components/GameScreen";
 
 export default function Home() {
-  const [screen, setScreen] = useState("login"); // login | welcome | create | join | lobby
+  const [screen, setScreen] = useState("login"); // login | welcome | create | join | lobby | game
   const [user, setUser] = useState(null);
   const [currentRoom, setCurrentRoom] = useState(null);
 
@@ -43,7 +44,16 @@ export default function Home() {
 
   function handleRoomJoined(sala) {
     setCurrentRoom(sala);
-    setScreen("lobby");
+    if (sala.estado === "jugando") {
+      setScreen("game");
+    } else {
+      setScreen("lobby");
+    }
+  }
+
+  function handleStartGame(sala) {
+    setCurrentRoom(sala);
+    setScreen("game");
   }
 
   function handleBackToWelcome() {
@@ -90,7 +100,16 @@ export default function Home() {
         <Lobby
           user={user}
           sala={currentRoom}
+          onStartGame={handleStartGame}
           onBack={handleBackToWelcome}
+        />
+      )}
+
+      {screen === "game" && user && currentRoom && (
+        <GameScreen
+          user={user}
+          sala={currentRoom}
+          onBackToMenu={handleBackToWelcome}
         />
       )}
     </main>

@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
-import { BANCO_PREGUNTAS } from './questions';
+import { PREGUNTAS_POR_CATEGORIA, CATEGORIAS, obtenerPreguntasPorCategoria } from './questions';
 
 const SQL_FILE_PATH = path.join(process.cwd(), "usuarios.sql");
 const LOG_FILE_PATH = path.join(process.cwd(), "usuarios.log");
@@ -50,13 +50,69 @@ CREATE TABLE IF NOT EXISTS usuarios (
   }
 }
 
+// Function to load users from usuarios.sql on startup
+function cargarUsuariosDesdeSql() {
+  const usuarios = [];
+  try {
+    if (fs.existsSync(SQL_FILE_PATH)) {
+      const content = fs.readFileSync(SQL_FILE_PATH, 'utf8');
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const match = line.match(/VALUES\s*\(\s*'([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)'/i);
+        if (match) {
+          const [, id, nombre, email, foto] = match;
+          const existing = usuarios.find(u => u.id_usuario === id);
+          if (!existing) {
+            usuarios.push({
+              id_usuario: id,
+              nombre: nombre || email.split('@')[0],
+              email,
+              foto: foto || null,
+              auth_provider: 'google',
+              es_primera_vez: false,
+            });
+          } else {
+            if (nombre) existing.nombre = nombre;
+            if (foto) existing.foto = foto;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("No se pudo pre-cargar usuarios de SQL:", e.message);
+  }
+  return usuarios;
+}
+
 let pool = null;
-let useMemory = false;
+let useMemory = true; // Default to true for stability, verified on connection
+
+if (process.env.DATABASE_URL) {
+  try {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 1500,
+    });
+
+    pool.query('SELECT 1').then(() => {
+      useMemory = false;
+      console.log('Conectado a PostgreSQL exitosamente');
+    }).catch(() => {
+      useMemory = true;
+    });
+
+    pool.on('error', () => {
+      useMemory = true;
+    });
+  } catch {
+    useMemory = true;
+  }
+}
 
 // Global in-memory fallback store
 if (!global.__QUIZPEKUY_STORE) {
   global.__QUIZPEKUY_STORE = {
-    usuarios: [],
+    usuarios: cargarUsuariosDesdeSql(),
     salas: [],
     salaJugadores: [],
     preguntas: [],
@@ -65,32 +121,16 @@ if (!global.__QUIZPEKUY_STORE) {
 }
 const memoryStore = global.__QUIZPEKUY_STORE;
 
-try {
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/quizpekuy',
-    connectionTimeoutMillis: 2000,
-  });
-
-  pool.on('error', () => {
-    useMemory = true;
-  });
-} catch {
-  useMemory = true;
-}
-
 export async function query(text, params) {
-  if (useMemory) {
+  if (useMemory || !pool) {
     return { rows: [] };
   }
   try {
     const result = await pool.query(text, params);
     return result;
   } catch (err) {
-    if (err.code === 'ECONNREFUSED' || err.code === '57P03' || err.message?.includes('connect') || err.message?.includes('timeout')) {
-      useMemory = true;
-      return { rows: [] };
-    }
-    throw err;
+    useMemory = true;
+    return { rows: [] };
   }
 }
 
@@ -98,5 +138,5 @@ export function isUsingMemory() {
   return useMemory;
 }
 
-export { memoryStore, BANCO_PREGUNTAS };
-export default { query, isUsingMemory, memoryStore, guardarEnSqlYLog, BANCO_PREGUNTAS };
+export { memoryStore, PREGUNTAS_POR_CATEGORIA, CATEGORIAS, obtenerPreguntasPorCategoria };
+export default { query, isUsingMemory, memoryStore, guardarEnSqlYLog, PREGUNTAS_POR_CATEGORIA, CATEGORIAS, obtenerPreguntasPorCategoria };

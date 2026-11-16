@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { query, isUsingMemory, memoryStore } from "../../../lib/db";
 
-
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -11,7 +10,7 @@ export async function GET(request) {
       return NextResponse.json({ error: "ID de sala requerido" }, { status: 400 });
     }
 
-    const idNumber = parseInt(salaId);
+    const idNumber = parseInt(salaId, 10);
 
     if (isUsingMemory()) {
       const sala = memoryStore.salas.find(s => s.id === idNumber);
@@ -23,33 +22,50 @@ export async function GET(request) {
       
       const jugadores = playerRecords.map((sj, idx) => {
         const u = memoryStore.usuarios.find(u => u.id_usuario === sj.usuario_id);
+        const resolvedName = (u && u.nombre) ? u.nombre : (sj.nombre || `Jugador ${idx + 1}`);
+        const resolvedFoto = (u && u.foto) ? u.foto : (sj.foto || null);
         return {
           id: sj.usuario_id,
-          nombre: u ? u.nombre : `Jugador ${idx + 1}`,
-          foto: u ? u.foto : null,
+          nombre: resolvedName,
+          foto: resolvedFoto,
           turnoPregunta: sj.turno_pregunta || (idx + 1),
+          cartas: sj.cartas || { sol: 0, rio: 0, montana: 0 },
         };
       });
 
-      // ONLY include numero, texto, and asignada_a - NEVER alternatives or correct answer
-      const preguntas = memoryStore.preguntas
-        .filter(q => q.sala_id === sala.id && q.asignada_a)
-        .map(q => ({
-          numero: q.numero,
-          texto: q.texto,
-          asignadaA: q.asignada_a,
-        }));
+      // Filter active question so alternatives are NOT visible in public lobby poll
+      let publicPreguntaActiva = null;
+      if (sala.pregunta_activa) {
+        publicPreguntaActiva = {
+          jugadorId: sala.pregunta_activa.jugadorId,
+          jugadorNombre: sala.pregunta_activa.jugadorNombre,
+          numero: sala.pregunta_activa.numero,
+          texto: sala.pregunta_activa.texto,
+          respondida: sala.pregunta_activa.respondida,
+          esperandoAcertijo: sala.pregunta_activa.esperandoAcertijo,
+        };
+      }
 
       return NextResponse.json({
         sala: {
           id: sala.id,
           codigo: sala.codigo,
           creadorId: sala.creador_id,
+          creadorNombre: sala.creador_nombre || "Anfitrión",
           cantidadPreguntas: sala.cantidad_preguntas,
+          categoria: sala.categoria || "cultura_peruana",
           estado: sala.estado,
+          turnoActual: sala.turno_actual,
+          preguntaActiva: publicPreguntaActiva,
+          alertaRobo: sala.alerta_robo,
+          ganador: sala.ganador,
+          tiempoFin: sala.tiempo_fin,
         },
         jugadores,
-        preguntas,
+        preguntas: memoryStore.preguntas
+          .filter(q => q.sala_id === sala.id)
+          .slice(0, 10)
+          .map(q => ({ numero: q.numero, texto: q.texto, asignadaA: q.asignada_a })),
       });
     }
 
@@ -74,15 +90,6 @@ export async function GET(request) {
       [idNumber]
     );
 
-    // CRITICAL: only numero, texto, asignada_a (NO alternatives, NO respuesta_correcta)
-    const questionsResult = await query(
-      `SELECT p.numero, p.texto, p.asignada_a
-       FROM preguntas p
-       WHERE p.sala_id = $1 AND p.asignada_a IS NOT NULL
-       ORDER BY p.numero ASC`,
-      [idNumber]
-    );
-
     return NextResponse.json({
       sala: {
         id: sala.id,
@@ -96,12 +103,9 @@ export async function GET(request) {
         nombre: p.nombre || `Jugador ${idx + 1}`,
         foto: p.foto,
         turnoPregunta: p.turno_pregunta || (idx + 1),
+        cartas: { sol: 0, rio: 0, montana: 0 },
       })),
-      preguntas: questionsResult.rows.map(q => ({
-        numero: q.numero,
-        texto: q.texto,
-        asignadaA: q.asignada_a,
-      })),
+      preguntas: [],
     });
   } catch (err) {
     console.error("Error obteniendo lobby:", err);

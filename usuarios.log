@@ -8,3 +8,8 @@
 [2026-11-15T09:46:23.666Z] NOMBRE: Hola | ID_USUARIO: email_1794735983666_21i3db | EMAIL: hola@ulasalle.edu.pe | PROVIDER: email | PRIMERA_VEZ: true
 [2026-11-15T09:49:07.131Z] NOMBRE: Bran Yames Paz Patatingo | ID_USUARIO: 114741183858840650944 | EMAIL: bpazp@ulasalle.edu.pe | PROVIDER: google | PRIMERA_VEZ: false
 [2026-11-15T09:58:43.846Z] NOMBRE: Bran Yames Paz Patatingo | ID_USUARIO: 114741183858840650944 | EMAIL: bpazp@ulasalle.edu.pe | PROVIDER: google | PRIMERA_VEZ: true
+[2026-11-16T02:55:18.532Z] NOMBRE: Explorador uno | ID_USUARIO: email_1794797718532_qs92iu | EMAIL: explorador.uno@ulasalle.edu.pe | PROVIDER: email | PRIMERA_VEZ: true
+[2026-11-16T02:55:18.689Z] NOMBRE: Explorador dos | ID_USUARIO: email_1794797718689_mbzk10 | EMAIL: explorador.dos@ulasalle.edu.pe | PROVIDER: email | PRIMERA_VEZ: true
+[2026-11-16T02:56:03.103Z] NOMBRE: Explorador uno | ID_USUARIO: email_1794797718532_qs92iu | EMAIL: explorador.uno@ulasalle.edu.pe | PROVIDER: email | PRIMERA_VEZ: false
+[2026-11-16T03:08:16.418Z] NOMBRE: Casper | ID_USUARIO: email_1794798496417_w6c5c3 | EMAIL: casper@ulasalle.edu.pe | PROVIDER: email | PRIMERA_VEZ: true
+[2026-11-16T03:22:52.058Z] NOMBRE: Bran Yames Paz Patatingo | ID_USUARIO: 114741183858840650944 | EMAIL: bpazp@ulasalle.edu.pe | PROVIDER: google | PRIMERA_VEZ: false
