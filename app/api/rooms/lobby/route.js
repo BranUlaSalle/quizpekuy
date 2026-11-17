@@ -18,7 +18,9 @@ export async function GET(request) {
         return NextResponse.json({ error: "Sala no encontrada" }, { status: 404 });
       }
 
-      const playerRecords = memoryStore.salaJugadores.filter(sj => sj.sala_id === sala.id);
+      const playerRecords = memoryStore.salaJugadores
+        .filter(sj => sj.sala_id === sala.id)
+        .sort((a, b) => (a.orden_turno ?? 0) - (b.orden_turno ?? 0));
       
       const jugadores = playerRecords.map((sj, idx) => {
         const u = memoryStore.usuarios.find(u => u.id_usuario === sj.usuario_id);
@@ -56,12 +58,15 @@ export async function GET(request) {
           categoria: sala.categoria || "cultura_peruana",
           estado: sala.estado,
           turnoActual: sala.turno_actual,
+          ordenTurnos: sala.orden_turnos || [],
+          inicioPartida: sala.inicio_partida || null,
           preguntaActiva: publicPreguntaActiva,
           alertaRobo: sala.alerta_robo,
           ganador: sala.ganador,
           tiempoFin: sala.tiempo_fin,
         },
         jugadores,
+        serverNow: Date.now(),
         preguntas: memoryStore.preguntas
           .filter(q => q.sala_id === sala.id)
           .slice(0, 10)
@@ -106,6 +111,7 @@ export async function GET(request) {
         cartas: { sol: 0, rio: 0, montana: 0 },
       })),
       preguntas: [],
+      serverNow: Date.now(),
     });
   } catch (err) {
     console.error("Error obteniendo lobby:", err);

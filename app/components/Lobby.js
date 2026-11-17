@@ -12,10 +12,10 @@ const CATEGORIAS_MAP = {
 
 export default function Lobby({ user, sala, onStartGame, onBack }) {
   const [players, setPlayers] = useState([]);
-  const [questions, setQuestions] = useState([]);
   const [roomInfo, setRoomInfo] = useState(sala);
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [turnOrderIds, setTurnOrderIds] = useState([]);
   const [error, setError] = useState("");
 
   const fetchLobbyData = useCallback(async () => {
@@ -25,7 +25,9 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
       if (!res.ok) throw new Error(data.error || "Error al actualizar sala");
 
       setPlayers(data.jugadores || []);
-      setQuestions(data.preguntas || []);
+      setTurnOrderIds((current) =>
+        current.filter((playerId) => data.jugadores?.some((player) => player.id === playerId))
+      );
       if (data.sala) {
         setRoomInfo(data.sala);
         // If the room state changed to 'jugando', transition to GameScreen!
@@ -65,6 +67,7 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
         body: JSON.stringify({
           salaId: sala.id,
           userId: user.id,
+          turnOrderIds,
         }),
       });
 
@@ -72,7 +75,7 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
       if (!res.ok) throw new Error(data.error || "Error al iniciar partida");
 
       if (onStartGame) {
-        onStartGame({ ...roomInfo, estado: 'jugando' });
+        onStartGame({ ...roomInfo, ...data.sala, estado: 'jugando' });
       }
     } catch (e) {
       setError(e.message);
@@ -83,25 +86,21 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
   // Build 4 slots
   const slots = [0, 1, 2, 3].map((idx) => {
     const player = players[idx] || null;
-    let assignedQuestion = null;
-    if (player) {
-      assignedQuestion = questions.find((q) => q.asignadaA === player.id);
-    }
     return {
       slotNumber: idx + 1,
       player,
-      assignedQuestion,
     };
   });
 
   const catMeta = CATEGORIAS_MAP[roomInfo.categoria] || CATEGORIAS_MAP.cultura_peruana;
   const isCreator = (roomInfo.creadorId === user.id) || (sala.creadorId === user.id);
+  const turnNumberFor = (playerId) => turnOrderIds.indexOf(playerId);
+  const canStart = players.length >= 2 && turnOrderIds.length === players.length;
 
   // Determine button color state for the creator:
   // < 2 players: disabled
   // == 2 players: verde opaco (opaque green)
   // >= 3 players: verde intenso (intense vibrant green)
-  const canStart = players.length >= 2;
   const isIntenseGreen = players.length >= 3;
 
   return (
@@ -142,15 +141,15 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
           <span className="status-hint">
             {players.length < 2
               ? "Esperando que se una al menos 1 jugador más para poder iniciar la partida..."
-              : isCreator
-              ? "¡Tienes suficientes jugadores! Puedes iniciar la partida cuando gustes."
+            : isCreator
+              ? "Asigna el orden tocando Turno junto a cada jugador."
               : `Esperando que el anfitrión (${roomInfo.creadorNombre || "el anfitrión"}) inicie la partida...`}
           </span>
         </div>
 
         {/* 4 Players Slots Grid */}
         <div className="players-slots-grid">
-          {slots.map(({ slotNumber, player, assignedQuestion }) => {
+          {slots.map(({ slotNumber, player }) => {
             // Resolve player name robustly (support Google user name, state name, fallback)
             let displayName = `Jugador ${slotNumber}`;
             let displayPhoto = null;
@@ -174,6 +173,24 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
                 className={`player-card-slot ${player ? "slot-occupied" : "slot-waiting"}`}
               >
                 <div className="slot-badge-number">Slot {slotNumber}</div>
+                {player && isCreator && (
+                  <button
+                    type="button"
+                    aria-pressed={turnNumberFor(player.id) >= 0}
+                    title={turnNumberFor(player.id) >= 0 ? "Quitar del orden" : "Asignar siguiente turno"}
+                    onClick={() => setTurnOrderIds((current) =>
+                      current.includes(player.id)
+                        ? current.filter((id) => id !== player.id)
+                        : [...current, player.id]
+                    )}
+                    style={{ position: "absolute", top: "34px", right: "12px", padding: "5px 10px", borderRadius: "8px", border: "1px solid var(--gold-accent)", background: turnNumberFor(player.id) >= 0 ? "rgba(242, 186, 76, 0.22)" : "#25180e", color: "var(--gold-primary)", cursor: "pointer" }}
+                  >
+                    {turnNumberFor(player.id) >= 0 ? `Turno ${turnNumberFor(player.id) + 1}` : "Turno"}
+                  </button>
+                )}
+                {player && !isCreator && turnNumberFor(player.id) >= 0 && (
+                  <span className="slot-badge-number" style={{ left: "12px", right: "auto" }}>Turno {turnNumberFor(player.id) + 1}</span>
+                )}
 
                 {player ? (
                   <div className="player-slot-content">
@@ -203,28 +220,6 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
                       {displayName}
                     </h3>
 
-                    {/* Question Section - ONLY question text, NO alternatives */}
-                    <div className="player-question-container">
-                      <div className="question-header-tag">
-                        <span>📜</span>
-                        <span>Pregunta asignada #{assignedQuestion ? assignedQuestion.numero : slotNumber}</span>
-                      </div>
-
-                      {assignedQuestion ? (
-                        <div className="question-text-box">
-                          <p className="question-text">
-                            "{assignedQuestion.texto}"
-                          </p>
-                          <span className="alternatives-hidden-tag">
-                            🔒 Alternativas ocultas durante la espera
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="question-assigning-note">
-                          Pregunta del banco lista para la partida
-                        </p>
-                      )}
-                    </div>
                   </div>
                 ) : (
                   <div className="empty-slot-content">
@@ -261,8 +256,10 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
                   <span className="btn-spinner"></span>
                   <span>Iniciando partida...</span>
                 </span>
-              ) : !canStart ? (
+              ) : players.length < 2 ? (
                 "Esperando mínimo 2 jugadores para empezar"
+              ) : turnOrderIds.length !== players.length ? (
+                "Asigna el turno de cada jugador para empezar"
               ) : isIntenseGreen ? (
                 `🔥 ¡Empezar partida! (${players.length} jugadores listos)`
               ) : (

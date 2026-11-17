@@ -38,6 +38,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   const [toastMsg, setToastMsg] = useState("");
 
   const endTimerRef = useRef(null);
+  const serverOffsetRef = useRef(0);
 
   function showToast(msg) {
     setToastMsg(msg);
@@ -46,7 +47,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
 
   // Initial 5-second banner timer
   useEffect(() => {
-    if (phase !== "banner") return;
+    if (roomState.inicioPartida || phase !== "banner") return;
     const interval = setInterval(() => {
       setBannerSecondsLeft((prev) => {
         if (prev <= 1) {
@@ -58,11 +59,11 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [phase]);
+  }, [phase, roomState.inicioPartida]);
 
   // 3-second countdown timer
   useEffect(() => {
-    if (phase !== "countdown") return;
+    if (roomState.inicioPartida || phase !== "countdown") return;
     const interval = setInterval(() => {
       setCountdownNum((prev) => {
         if (prev <= 1) {
@@ -74,7 +75,29 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [phase]);
+  }, [phase, roomState.inicioPartida]);
+
+  useEffect(() => {
+    if (!roomState.inicioPartida) return;
+
+    function syncPhase() {
+      const remaining = roomState.inicioPartida - (Date.now() + serverOffsetRef.current);
+      if (remaining > 3000) {
+        setPhase("banner");
+        setBannerSecondsLeft(Math.ceil((remaining - 3000) / 1000));
+      } else if (remaining > 0) {
+        setPhase("countdown");
+        setCountdownNum(Math.ceil(remaining / 1000));
+      } else {
+        setPhase("playing");
+        setCountdownNum(0);
+      }
+    }
+
+    syncPhase();
+    const interval = setInterval(syncPhase, 100);
+    return () => clearInterval(interval);
+  }, [roomState.inicioPartida]);
 
   // Polling game room state every 1.5 seconds
   const fetchGameState = useCallback(async () => {
@@ -83,6 +106,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
+      if (typeof data.serverNow === "number") {
+        serverOffsetRef.current = data.serverNow - Date.now();
+      }
       setPlayers(data.jugadores || []);
       if (data.sala) {
         setRoomState(data.sala);
@@ -128,6 +154,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   // Is it current user's turn?
   const isMyTurn = roomState.turnoActual === user.id;
   const isCreator = roomState.creadorId === user.id;
+  const turnActionLocked = !!roomState.preguntaActiva || !!roomState.alertaRobo?.activo;
 
   // Active question from someone else
   const otherPlayerAnswering =
@@ -288,6 +315,26 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     }
   }
 
+  async function handlePassTurn() {
+    if (!isMyTurn || turnActionLocked || winner) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/rooms/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ salaId: sala.id, userId: user.id, action: "PASAR_TURNO" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showToast("Turno pasado al siguiente jugador.");
+      fetchGameState();
+    } catch (e) {
+      showToast(e.message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleCancelSteal() {
     setShowStealConfirm(false);
     setShowVictimPicker(false);
@@ -385,6 +432,13 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   }
 
   // --------------------------------------------------------------------------
+  const startingPlayerIndex = players.findIndex((player) => player.id === roomState.turnoActual);
+  const turnOrder = roomState.ordenTurnos?.length
+    ? roomState.ordenTurnos.map((playerId) => players.find((player) => player.id === playerId)).filter(Boolean)
+    : startingPlayerIndex < 0
+      ? players
+      : [...players.slice(startingPlayerIndex), ...players.slice(0, startingPlayerIndex)];
+
   // RENDER: PHASE 1 (5s Banner)
   // --------------------------------------------------------------------------
   if (phase === "banner") {
@@ -422,6 +476,13 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
           </div>
           <h3 className="countdown-label">LA PARTIDA COMIENZA EN</h3>
           <div className="countdown-big-number">{countdownNum}</div>
+          <div style={{ marginTop: "14px", display: "flex", justifyContent: "center", gap: "10px", flexWrap: "wrap" }}>
+            {turnOrder.map((player, index) => (
+              <span key={player.id} className="lobby-room-badge">
+                Turno {index + 1}: {player.id === user.id ? "Tú" : player.nombre}
+              </span>
+            ))}
+          </div>
           <p className="countdown-sub">¡Prepárense para responder o robar!</p>
         </div>
       </div>
@@ -625,9 +686,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
               {/* BUTTON 1: PREGUNTA */}
               <button
                 type="button"
-                className={`game-big-btn btn-pregunta ${isMyTurn ? "btn-active-glow" : "btn-muted"}`}
+                className={`game-big-btn btn-pregunta ${isMyTurn && !turnActionLocked ? "btn-active-glow" : "btn-muted"}`}
                 onClick={handlePressPregunta}
-                disabled={actionLoading || !!myQuestion || !!winner}
+                disabled={!isMyTurn || turnActionLocked || actionLoading || !!myQuestion || !!winner}
               >
                 <div className="btn-icon-circle">📜</div>
                 <div className="btn-label-group">
@@ -639,9 +700,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
               {/* BUTTON 2: ROBAR */}
               <button
                 type="button"
-                className={`game-big-btn btn-robar ${isMyTurn ? "btn-active-glow" : "btn-muted"}`}
+                className={`game-big-btn btn-robar ${isMyTurn && !turnActionLocked ? "btn-active-glow" : "btn-muted"}`}
                 onClick={handlePressRobar}
-                disabled={actionLoading || !!myQuestion || !!winner}
+                disabled={!isMyTurn || turnActionLocked || actionLoading || !!myQuestion || !!winner}
               >
                 <div className="btn-icon-circle">🦹</div>
                 <div className="btn-label-group">
@@ -650,6 +711,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
                 </div>
               </button>
             </div>
+            <button type="button" className="secondary-back-btn" onClick={handlePassTurn} disabled={!isMyTurn || turnActionLocked || actionLoading || !!winner} style={{ marginTop: "14px" }}>Pasar turno</button>
           </div>
         )}
 

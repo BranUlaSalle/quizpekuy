@@ -32,7 +32,9 @@ export async function POST(request) {
         return NextResponse.json({ error: "Sala no encontrada" }, { status: 404 });
       }
 
-      const players = memoryStore.salaJugadores.filter(sj => sj.sala_id === sala.id);
+      const players = memoryStore.salaJugadores
+        .filter(sj => sj.sala_id === sala.id)
+        .sort((a, b) => (a.orden_turno ?? 0) - (b.orden_turno ?? 0));
       const currentPlayerRecord = players.find(p => p.usuario_id === userId);
       if (!currentPlayerRecord) {
         return NextResponse.json({ error: "Jugador no pertenece a esta sala" }, { status: 403 });
@@ -47,6 +49,10 @@ export async function POST(request) {
       if (action === "PEDIR_PREGUNTA") {
         if (sala.turno_actual && sala.turno_actual !== userId) {
           return NextResponse.json({ error: "No es tu turno de responder" }, { status: 403 });
+        }
+
+        if (sala.pregunta_activa || sala.alerta_robo?.activo) {
+          return NextResponse.json({ error: "Ya hay una opción en curso en la sala" }, { status: 409 });
         }
 
         // Get questions for this room
@@ -181,6 +187,10 @@ export async function POST(request) {
           return NextResponse.json({ error: "No es tu turno de robar" }, { status: 403 });
         }
 
+        if (sala.pregunta_activa || sala.alerta_robo?.activo) {
+          return NextResponse.json({ error: "Ya hay una opción en curso en la sala" }, { status: 409 });
+        }
+
         sala.alerta_robo = {
           activo: true,
           ladronId: userId,
@@ -194,6 +204,17 @@ export async function POST(request) {
       // ----------------------------------------------------------------------
       // 5. CANCELAR ROBO ("Paso")
       // ----------------------------------------------------------------------
+      if (action === "PASAR_TURNO") {
+        if (sala.turno_actual !== userId) {
+          return NextResponse.json({ error: "No es tu turno" }, { status: 403 });
+        }
+        if (sala.pregunta_activa || sala.alerta_robo?.activo) {
+          return NextResponse.json({ error: "Termina la opción actual antes de pasar turno" }, { status: 409 });
+        }
+        sala.turno_actual = getNextPlayerId(players, userId);
+        return NextResponse.json({ ok: true, siguienteTurno: sala.turno_actual });
+      }
+
       if (action === "CANCELAR_ROBO") {
         sala.alerta_robo = null;
         return NextResponse.json({ ok: true });
@@ -281,6 +302,7 @@ export async function POST(request) {
         sala.pregunta_activa = null;
         sala.tiempo_fin = null;
         sala.turno_actual = players[0].usuario_id;
+        sala.inicio_partida = Date.now() + 8000;
         sala.indice_pregunta = 0;
 
         // Reset all cards

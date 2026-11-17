@@ -3,7 +3,7 @@ import { query, isUsingMemory, memoryStore } from "../../../lib/db";
 
 export async function POST(request) {
   try {
-    const { salaId, userId } = await request.json();
+    const { salaId, userId, turnOrderIds = [] } = await request.json();
 
     if (!salaId || !userId) {
       return NextResponse.json({ error: "Parámetros incompletos" }, { status: 400 });
@@ -27,8 +27,19 @@ export async function POST(request) {
         return NextResponse.json({ error: "Se necesitan al menos 2 jugadores para empezar la partida" }, { status: 400 });
       }
 
+      const requestedOrder = Array.isArray(turnOrderIds) ? turnOrderIds : [];
+      const uniqueOrder = new Set(requestedOrder);
+      if (requestedOrder.length !== players.length || uniqueOrder.size !== players.length ||
+          !players.every((player) => uniqueOrder.has(player.usuario_id))) {
+        return NextResponse.json({ error: "Asigna un turno único a cada jugador" }, { status: 400 });
+      }
+
+      const orderedPlayers = requestedOrder.map((playerId) => players.find((player) => player.usuario_id === playerId));
+      orderedPlayers.forEach((player, index) => { player.orden_turno = index + 1; });
+      sala.orden_turnos = requestedOrder;
       sala.estado = 'jugando';
-      sala.turno_actual = players[0].usuario_id;
+      sala.turno_actual = requestedOrder[0];
+      sala.inicio_partida = Date.now() + 8000;
       sala.pregunta_activa = null;
       sala.alerta_robo = null;
       sala.ganador = null;
@@ -43,11 +54,16 @@ export async function POST(request) {
       return NextResponse.json({
         ok: true,
         estado: 'jugando',
+        turnoActual: sala.turno_actual,
+        ordenTurnos: sala.orden_turnos,
+        inicioPartida: sala.inicio_partida,
         sala: {
           id: sala.id,
           codigo: sala.codigo,
           estado: 'jugando',
           turnoActual: sala.turno_actual,
+          ordenTurnos: sala.orden_turnos,
+          inicioPartida: sala.inicio_partida,
         },
       });
     }
