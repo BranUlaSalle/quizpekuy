@@ -299,7 +299,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
 
     // Trigger alert to other players and open confirmation for thief
     try {
-      await fetch("/api/rooms/action", {
+      const res = await fetch("/api/rooms/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -308,6 +308,8 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
           action: "ALERTA_ROBAR",
         }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo iniciar el robo");
       setShowStealConfirm(true);
       fetchGameState();
     } catch (e) {

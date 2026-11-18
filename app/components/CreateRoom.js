@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import CuyDorado from "./CuyDorado";
 
 const PRESET_OPTIONS = [10, 25, 30, 40, 50];
@@ -21,6 +21,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
   const [error, setError] = useState("");
   const [createdSala, setCreatedSala] = useState(null);
   const [copied, setCopied] = useState(false);
+  const creatingRoomRef = useRef(false);
 
   function handleSelectPreset(val) {
     setSelectedCount(val);
@@ -48,6 +49,8 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
   }
 
   async function handleCreateRoomSubmit() {
+    if (creatingRoomRef.current) return;
+    creatingRoomRef.current = true;
     setError("");
     setLoading(true);
 
@@ -71,6 +74,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
     } catch (e) {
       setError(e.message);
     } finally {
+      creatingRoomRef.current = false;
       setLoading(false);
     }
   }

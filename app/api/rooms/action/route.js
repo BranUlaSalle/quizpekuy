@@ -10,7 +10,7 @@ function tieneTriadaGanadora(cartas) {
 // Next turn helper
 function getNextPlayerId(players, currentUserId) {
   if (!players || players.length === 0) return null;
-  const currentIndex = players.findIndex(p => p.usuario_id === currentUserId);
+  const currentIndex = players.findIndex(p => String(p.usuario_id) === String(currentUserId));
   if (currentIndex === -1) return players[0].usuario_id;
   const nextIndex = (currentIndex + 1) % players.length;
   return players[nextIndex].usuario_id;
@@ -35,7 +35,7 @@ export async function POST(request) {
       const players = memoryStore.salaJugadores
         .filter(sj => sj.sala_id === sala.id)
         .sort((a, b) => (a.orden_turno ?? 0) - (b.orden_turno ?? 0));
-      const currentPlayerRecord = players.find(p => p.usuario_id === userId);
+      const currentPlayerRecord = players.find(p => String(p.usuario_id) === String(userId));
       if (!currentPlayerRecord) {
         return NextResponse.json({ error: "Jugador no pertenece a esta sala" }, { status: 403 });
       }
@@ -47,7 +47,11 @@ export async function POST(request) {
       // 1. PEDIR PREGUNTA
       // ----------------------------------------------------------------------
       if (action === "PEDIR_PREGUNTA") {
-        if (sala.turno_actual && sala.turno_actual !== userId) {
+        if (sala.estado !== "jugando") {
+          return NextResponse.json({ error: "La partida no está en curso" }, { status: 409 });
+        }
+
+        if (String(sala.turno_actual) !== String(userId)) {
           return NextResponse.json({ error: "No es tu turno de responder" }, { status: 403 });
         }
 
@@ -95,7 +99,10 @@ export async function POST(request) {
       // 2. RESPONDER PREGUNTA
       // ----------------------------------------------------------------------
       if (action === "RESPONDER_PREGUNTA") {
-        if (!sala.pregunta_activa || sala.pregunta_activa.jugadorId !== userId) {
+        if (!sala.pregunta_activa ||
+            String(sala.pregunta_activa.jugadorId) !== String(userId) ||
+            sala.pregunta_activa.respondida ||
+            String(sala.turno_actual) !== String(userId)) {
           return NextResponse.json({ error: "No hay una pregunta activa para ti" }, { status: 400 });
         }
 
@@ -148,6 +155,12 @@ export async function POST(request) {
         if (!tipoAcertijo || !["sol", "rio", "montana"].includes(tipoAcertijo)) {
           return NextResponse.json({ error: "Tipo de acertijo inválido" }, { status: 400 });
         }
+        if (!sala.pregunta_activa ||
+            String(sala.pregunta_activa.jugadorId) !== String(userId) ||
+            !sala.pregunta_activa.esperandoAcertijo ||
+            String(sala.turno_actual) !== String(userId)) {
+          return NextResponse.json({ error: "No tienes una respuesta correcta pendiente de elegir carta" }, { status: 409 });
+        }
 
         if (!currentPlayerRecord.cartas) {
           currentPlayerRecord.cartas = { sol: 0, rio: 0, montana: 0 };
@@ -183,7 +196,11 @@ export async function POST(request) {
       // 4. ALERTA ROBAR
       // ----------------------------------------------------------------------
       if (action === "ALERTA_ROBAR") {
-        if (sala.turno_actual && sala.turno_actual !== userId) {
+        if (sala.estado !== "jugando") {
+          return NextResponse.json({ error: "La partida no está en curso" }, { status: 409 });
+        }
+
+        if (String(sala.turno_actual) !== String(userId)) {
           return NextResponse.json({ error: "No es tu turno de robar" }, { status: 403 });
         }
 
@@ -205,7 +222,7 @@ export async function POST(request) {
       // 5. CANCELAR ROBO ("Paso")
       // ----------------------------------------------------------------------
       if (action === "PASAR_TURNO") {
-        if (sala.turno_actual !== userId) {
+        if (sala.estado !== "jugando" || String(sala.turno_actual) !== String(userId)) {
           return NextResponse.json({ error: "No es tu turno" }, { status: 403 });
         }
         if (sala.pregunta_activa || sala.alerta_robo?.activo) {
@@ -229,7 +246,13 @@ export async function POST(request) {
           return NextResponse.json({ error: "Debes elegir a un jugador para robarle" }, { status: 400 });
         }
 
-        const victimaRecord = players.find(p => p.usuario_id === victimaId);
+        if (!sala.alerta_robo?.activo ||
+            String(sala.alerta_robo.ladronId) !== String(userId) ||
+            String(sala.turno_actual) !== String(userId)) {
+          return NextResponse.json({ error: "No tienes un robo pendiente en tu turno" }, { status: 409 });
+        }
+
+        const victimaRecord = players.find(p => String(p.usuario_id) === String(victimaId));
         if (!victimaRecord) {
           return NextResponse.json({ error: "Jugador no encontrado" }, { status: 404 });
         }
