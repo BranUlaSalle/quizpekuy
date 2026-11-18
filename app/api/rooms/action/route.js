@@ -1,5 +1,6 @@
+import { withRoom } from "../../../lib/roomStore";
 import { NextResponse } from "next/server";
-import { query, isUsingMemory, memoryStore, obtenerPreguntasPorCategoria } from "../../../lib/db";
+import { obtenerPreguntasPorCategoria } from "../../../lib/db";
 
 // Checks victory condition: player must have 1 sol, 1 rio and 1 montana
 function tieneTriadaGanadora(cartas) {
@@ -26,13 +27,13 @@ export async function POST(request) {
 
     const idNumber = parseInt(salaId, 10);
 
-    if (isUsingMemory()) {
-      const sala = memoryStore.salas.find(s => s.id === idNumber);
+    return await withRoom({ id: idNumber }, (store) => {
+      const sala = store.salas.find(s => s.id === idNumber);
       if (!sala) {
         return NextResponse.json({ error: "Sala no encontrada" }, { status: 404 });
       }
 
-      const players = memoryStore.salaJugadores
+      const players = store.salaJugadores
         .filter(sj => sj.sala_id === sala.id)
         .sort((a, b) => (a.orden_turno ?? 0) - (b.orden_turno ?? 0));
       const currentPlayerRecord = players.find(p => p.usuario_id === userId);
@@ -40,7 +41,24 @@ export async function POST(request) {
         return NextResponse.json({ error: "Jugador no pertenece a esta sala" }, { status: 403 });
       }
 
-      const userObj = memoryStore.usuarios.find(u => u.id_usuario === userId);
+      if (action === "REVANCHA" ? sala.estado !== "terminada" : sala.estado !== "jugando" || sala.turno_actual !== userId) {
+        return NextResponse.json({ error: "La acción no corresponde al turno actual" }, { status: 409 });
+      }
+      const active = sala.pregunta_activa;
+      if (action === "PEDIR_PREGUNTA" && active?.jugadorId === userId) {
+        const { numero, texto, alternativas } = active;
+        return NextResponse.json({ ok: true, pregunta: { numero, texto, alternativas } });
+      }
+      if (action === "ALERTA_ROBAR" && sala.alerta_robo?.activo && sala.alerta_robo.ladronId === userId) {
+        return NextResponse.json({ ok: true, alertaRobo: sala.alerta_robo });
+      }
+      if ((action === "ELEGIR_ACERTIJO" && !active?.esperandoAcertijo) ||
+          (action === "RESPONDER_PREGUNTA" && active?.respondida) ||
+          (["EJECUTAR_ROBO", "CANCELAR_ROBO"].includes(action) && (!sala.alerta_robo?.activo || sala.alerta_robo.ladronId !== userId)) ||
+          (action === "EJECUTAR_ROBO" && data.victimaId === userId)) {
+        return NextResponse.json({ error: "La jugada ya terminó o cambió" }, { status: 409 });
+      }
+      const userObj = store.usuarios.find(u => u.id_usuario === userId);
       const userName = userObj ? userObj.nombre : "Jugador";
 
       // ----------------------------------------------------------------------
@@ -56,7 +74,7 @@ export async function POST(request) {
         }
 
         // Get questions for this room
-        const roomQs = memoryStore.preguntas.filter(q => q.sala_id === sala.id);
+        const roomQs = store.preguntas.filter(q => q.sala_id === sala.id);
         const idx = (sala.indice_pregunta || 0) % (roomQs.length || 1);
         const q = roomQs[idx] || {
           numero: idx + 1,
@@ -253,7 +271,7 @@ export async function POST(request) {
         victimaRecord.cartas[cartaARobar] = Math.max(0, victimaRecord.cartas[cartaARobar] - 1);
         currentPlayerRecord.cartas[cartaARobar] = (currentPlayerRecord.cartas[cartaARobar] || 0) + 1;
 
-        const victimaObj = memoryStore.usuarios.find(u => u.id_usuario === victimaId);
+        const victimaObj = store.usuarios.find(u => u.id_usuario === victimaId);
         const victimaNombre = victimaObj ? victimaObj.nombre : "un jugador";
 
         // Check victory
@@ -312,9 +330,9 @@ export async function POST(request) {
 
         // Reshuffle questions
         const newQs = obtenerPreguntasPorCategoria(sala.categoria || "cultura_peruana", sala.cantidad_preguntas || 25);
-        memoryStore.preguntas = memoryStore.preguntas.filter(q => q.sala_id !== sala.id);
+        store.preguntas = store.preguntas.filter(q => q.sala_id !== sala.id);
         newQs.forEach((q, idx) => {
-          memoryStore.preguntas.push({
+          store.preguntas.push({
             sala_id: sala.id,
             numero: idx + 1,
             texto: q.texto,
@@ -331,10 +349,7 @@ export async function POST(request) {
       }
 
       return NextResponse.json({ error: "Acción no reconocida" }, { status: 400 });
-    }
-
-    // Default response if not memory
-    return NextResponse.json({ ok: true });
+    });
   } catch (err) {
     console.error("Error en acción de sala:", err);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });

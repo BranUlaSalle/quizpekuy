@@ -20,10 +20,11 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
 
   const fetchLobbyData = useCallback(async () => {
     try {
-      const res = await fetch(`/api/rooms/lobby?salaId=${sala.id}`);
+      const res = await fetch(`/api/rooms/lobby?salaId=${sala.id}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al actualizar sala");
 
+      setError("");
       setPlayers(data.jugadores || []);
       setTurnOrderIds((current) =>
         current.filter((playerId) => data.jugadores?.some((player) => player.id === playerId))

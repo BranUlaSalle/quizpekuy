@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import CuyDorado from "./CuyDorado";
 
 const PRESET_OPTIONS = [10, 25, 30, 40, 50];
@@ -17,6 +17,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
   const [selectedCategory, setSelectedCategory] = useState("cultura_peruana"); // Default category
   const [isCustom, setIsCustom] = useState(false);
   const [customValue, setCustomValue] = useState("");
+  const creating = useRef(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [createdSala, setCreatedSala] = useState(null);
@@ -48,6 +49,8 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
   }
 
   async function handleCreateRoomSubmit() {
+    if (creating.current || createdSala) return;
+    creating.current = true;
     setError("");
     setLoading(true);
 
@@ -71,6 +74,7 @@ export default function CreateRoom({ user, onRoomCreated, onBack }) {
     } catch (e) {
       setError(e.message);
     } finally {
+      creating.current = false;
       setLoading(false);
     }
   }

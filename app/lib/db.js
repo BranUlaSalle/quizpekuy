@@ -84,30 +84,12 @@ function cargarUsuariosDesdeSql() {
   return usuarios;
 }
 
-let pool = null;
-let useMemory = true; // Default to true for stability, verified on connection
-
-if (process.env.DATABASE_URL) {
-  try {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 1500,
-    });
-
-    pool.query('SELECT 1').then(() => {
-      useMemory = false;
-      console.log('Conectado a PostgreSQL exitosamente');
-    }).catch(() => {
-      useMemory = true;
-    });
-
-    pool.on('error', () => {
-      useMemory = true;
-    });
-  } catch {
-    useMemory = true;
-  }
-}
+export const pool = process.env.DATABASE_URL ? new Pool({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 10000,
+}) : null;
+const useMemory = !pool;
+pool?.on("error", error => console.error("PostgreSQL:", error.message));
 
 // Global in-memory fallback store
 if (!global.__QUIZPEKUY_STORE) {
@@ -125,13 +107,7 @@ export async function query(text, params) {
   if (useMemory || !pool) {
     return { rows: [] };
   }
-  try {
-    const result = await pool.query(text, params);
-    return result;
-  } catch (err) {
-    useMemory = true;
-    return { rows: [] };
-  }
+  return pool.query(text, params);
 }
 
 export function isUsingMemory() {

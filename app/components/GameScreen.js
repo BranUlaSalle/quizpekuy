@@ -37,6 +37,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   // Error toast
   const [toastMsg, setToastMsg] = useState("");
 
+  const busy = useRef(false);
+  const actionEpoch = useRef(0);
+  const revision = useRef(-1);
   const endTimerRef = useRef(null);
   const serverOffsetRef = useRef(0);
 
@@ -101,11 +104,23 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
 
   // Polling game room state every 1.5 seconds
   const fetchGameState = useCallback(async () => {
+    const epoch = actionEpoch.current;
     try {
-      const res = await fetch(`/api/rooms/lobby?salaId=${sala.id}`);
+      const res = await fetch(`/api/rooms/lobby?salaId=${sala.id}&jugador=${encodeURIComponent(user.id)}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
+      if (epoch !== actionEpoch.current || busy.current || data.revision < revision.current) return;
+      revision.current = data.revision;
+      const question = data.sala?.preguntaActiva;
+      if (question?.jugadorId === user.id && question.alternativas) {
+        setMyQuestion(question);
+        setShowAcertijoPicker(!!question.esperandoAcertijo);
+      } else {
+        setMyQuestion(null);
+        setShowAcertijoPicker(false);
+        setAnswering(false);
+      }
       if (typeof data.serverNow === "number") {
         serverOffsetRef.current = data.serverNow - Date.now();
       }
@@ -121,7 +136,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     } catch (e) {
       console.error("Error polling game:", e);
     }
-  }, [sala.id]);
+  }, [sala.id, user.id]);
 
   useEffect(() => {
     fetchGameState();
@@ -178,6 +193,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     }
     if (winner) return;
 
+    if (busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
     setActionLoading(true);
     try {
       const res = await fetch("/api/rooms/action", {
@@ -193,6 +211,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
       if (!res.ok) throw new Error(data.error);
 
       setMyQuestion(data.pregunta);
+      setAnswering(false);
       setSelectedAlt(null);
       setFeedbackMsg("");
       setShowAcertijoPicker(false);
@@ -200,12 +219,16 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     } catch (e) {
       showToast(e.message);
     } finally {
+      actionEpoch.current++;
+      busy.current = false;
       setActionLoading(false);
     }
   }
 
   async function handleAnswerSubmit(altText, index) {
-    if (!myQuestion || answering) return;
+    if (!myQuestion || answering || busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
     setAnswering(true);
     setSelectedAlt(index);
 
@@ -231,19 +254,23 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
         setShowAcertijoPicker(true);
       } else {
         setFeedbackMsg("❌ RESPUESTA INCORRECTA. Tu turno ha terminado.");
-        setTimeout(() => {
-          setMyQuestion(null);
-          setAnswering(false);
-          fetchGameState();
-        }, 2200);
+        showToast(data.mensaje);
+        setMyQuestion(null);
+        setAnswering(false);
       }
     } catch (e) {
       showToast(e.message);
       setAnswering(false);
+    } finally {
+      actionEpoch.current++;
+      busy.current = false;
     }
   }
 
   async function handlePickAcertijo(tipo) {
+    if (busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
     setActionLoading(true);
     try {
       const res = await fetch("/api/rooms/action", {
@@ -273,6 +300,8 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     } catch (e) {
       showToast(e.message);
     } finally {
+      actionEpoch.current++;
+      busy.current = false;
       setActionLoading(false);
     }
   }
@@ -297,9 +326,12 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
       return;
     }
 
-    // Trigger alert to other players and open confirmation for thief
+    if (busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
+    setActionLoading(true);
     try {
-      await fetch("/api/rooms/action", {
+      const res = await fetch("/api/rooms/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -308,15 +340,24 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
           action: "ALERTA_ROBAR",
         }),
       });
+      if (!res.ok) throw new Error((await res.json()).error);
       setShowStealConfirm(true);
       fetchGameState();
     } catch (e) {
       showToast(e.message);
     }
+    finally {
+      actionEpoch.current++;
+      busy.current = false;
+      setActionLoading(false);
+    }
   }
 
   async function handlePassTurn() {
     if (!isMyTurn || turnActionLocked || winner) return;
+    if (busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
     setActionLoading(true);
     try {
       const res = await fetch("/api/rooms/action", {
@@ -331,6 +372,8 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     } catch (e) {
       showToast(e.message);
     } finally {
+      actionEpoch.current++;
+      busy.current = false;
       setActionLoading(false);
     }
   }
@@ -339,7 +382,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     setShowStealConfirm(false);
     setShowVictimPicker(false);
     try {
-      await fetch("/api/rooms/action", {
+      const res = await fetch("/api/rooms/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -348,9 +391,10 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
           action: "CANCELAR_ROBO",
         }),
       });
+      if (!res.ok) throw new Error((await res.json()).error);
       fetchGameState();
     } catch (e) {
-      console.error(e);
+      showToast(e.message);
     }
   }
 
@@ -360,6 +404,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   }
 
   async function handleExecuteSteal(victimaId, tipoCarta) {
+    if (busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
     setActionLoading(true);
     try {
       const res = await fetch("/api/rooms/action", {
@@ -392,6 +439,8 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     } catch (e) {
       showToast(e.message);
     } finally {
+      actionEpoch.current++;
+      busy.current = false;
       setActionLoading(false);
     }
   }
@@ -400,6 +449,9 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   // ACTION 3: REVANCHA
   // --------------------------------------------------------------------------
   async function handleRevancha() {
+    if (busy.current) return;
+    actionEpoch.current++;
+    busy.current = true;
     setActionLoading(true);
     try {
       const res = await fetch("/api/rooms/action", {
@@ -427,6 +479,8 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
     } catch (e) {
       showToast(e.message);
     } finally {
+      actionEpoch.current++;
+      busy.current = false;
       setActionLoading(false);
     }
   }
@@ -692,7 +746,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
               >
                 <div className="btn-icon-circle">📜</div>
                 <div className="btn-label-group">
-                  <span className="btn-action-name">Pregunta</span>
+                  <span className="btn-action-name">{actionLoading ? "Procesando…" : "Pregunta"}</span>
                   <span className="btn-action-sub">Responde y gana un acertijo</span>
                 </div>
               </button>
@@ -737,7 +791,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
                       type="button"
                       className={`alt-option-btn ${isSelected ? "alt-selected" : ""}`}
                       onClick={() => handleAnswerSubmit(alt, idx)}
-                      disabled={answering}
+                      disabled={answering || showAcertijoPicker}
                     >
                       <span className="alt-letter">{letter}</span>
                       <span className="alt-text">{alt}</span>
@@ -798,7 +852,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
         )}
 
         {/* MODAL 2: CONFIRMACIÓN DE ROBO (Paso o Estoy seguro) */}
-        {showStealConfirm && (
+        {(showStealConfirm || (roomState.alertaRobo?.activo && roomState.alertaRobo.ladronId === user.id && !showVictimPicker)) && (
           <div className="modal-backdrop fade-in">
             <div className="steal-confirm-dialog">
               <div className="steal-dialog-icon">🦹</div>

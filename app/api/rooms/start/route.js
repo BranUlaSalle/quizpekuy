@@ -1,5 +1,6 @@
+import { withRoom } from "../../../lib/roomStore";
 import { NextResponse } from "next/server";
-import { query, isUsingMemory, memoryStore } from "../../../lib/db";
+
 
 export async function POST(request) {
   try {
@@ -11,8 +12,8 @@ export async function POST(request) {
 
     const idNumber = parseInt(salaId, 10);
 
-    if (isUsingMemory()) {
-      const sala = memoryStore.salas.find(s => s.id === idNumber);
+    return await withRoom({ id: idNumber }, (store) => {
+      const sala = store.salas.find(s => s.id === idNumber);
       if (!sala) {
         return NextResponse.json({ error: "Sala no encontrada" }, { status: 404 });
       }
@@ -22,7 +23,8 @@ export async function POST(request) {
         return NextResponse.json({ error: "Solo la persona que ha creado la sala puede iniciar la partida" }, { status: 403 });
       }
 
-      const players = memoryStore.salaJugadores.filter(sj => sj.sala_id === sala.id);
+      if (sala.estado !== "esperando") return NextResponse.json({ error: "Partida ya iniciada" }, { status: 409 });
+      const players = store.salaJugadores.filter(sj => sj.sala_id === sala.id);
       if (players.length < 2) {
         return NextResponse.json({ error: "Se necesitan al menos 2 jugadores para empezar la partida" }, { status: 400 });
       }
@@ -66,28 +68,7 @@ export async function POST(request) {
           inicioPartida: sala.inicio_partida,
         },
       });
-    }
-
-    // PostgreSQL path
-    const salaResult = await query("SELECT creador_id FROM salas WHERE id = $1", [idNumber]);
-    if (salaResult.rows.length === 0) {
-      return NextResponse.json({ error: "Sala no encontrada" }, { status: 404 });
-    }
-
-    if (salaResult.rows[0].creador_id !== userId) {
-      return NextResponse.json({ error: "Solo la persona que ha creado la sala puede iniciar la partida" }, { status: 403 });
-    }
-
-    const countRes = await query("SELECT COUNT(*) as total FROM sala_jugadores WHERE sala_id = $1", [idNumber]);
-    const total = parseInt(countRes.rows[0]?.total || 0, 10);
-
-    if (total < 2) {
-      return NextResponse.json({ error: "Se necesitan al menos 2 jugadores para empezar la partida" }, { status: 400 });
-    }
-
-    await query("UPDATE salas SET estado = 'jugando' WHERE id = $1", [idNumber]);
-
-    return NextResponse.json({ ok: true, estado: 'jugando' });
+    });
   } catch (err) {
     console.error("Error iniciando partida:", err);
     return NextResponse.json({ error: "Error al iniciar la partida" }, { status: 500 });

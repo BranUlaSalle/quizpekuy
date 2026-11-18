@@ -1,5 +1,6 @@
+import { withRoom } from "../../../lib/roomStore";
 import { NextResponse } from "next/server";
-import { query, isUsingMemory, memoryStore, obtenerPreguntasPorCategoria } from "../../../lib/db";
+import { obtenerPreguntasPorCategoria } from "../../../lib/db";
 
 function generateCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -16,47 +17,47 @@ export async function POST(request) {
     const cantidad = Math.min(Math.max(parseInt(cantidadPreguntas) || 25, 1), 50);
     const resolvedName = userName || "Explorador";
 
-    // Ensure user is in memoryStore
-    const existingU = memoryStore.usuarios.find(u => u.id_usuario === userId);
-    if (existingU) {
-      if (userName) existingU.nombre = userName;
-      if (userFoto) existingU.foto = userFoto;
-    } else {
-      memoryStore.usuarios.push({
-        id_usuario: userId,
-        nombre: resolvedName,
-        email: "",
-        foto: userFoto || null,
-        auth_provider: 'google',
-        es_primera_vez: false,
-      });
-    }
+    return await withRoom({ create: true }, (store, reservedCode) => {
+      // Ensure user is in store
+      const existingU = store.usuarios.find(u => u.id_usuario === userId);
+      if (existingU) {
+        if (userName) existingU.nombre = userName;
+        if (userFoto) existingU.foto = userFoto;
+      } else {
+        store.usuarios.push({
+          id_usuario: userId,
+          nombre: resolvedName,
+          email: "",
+          foto: userFoto || null,
+          auth_provider: 'google',
+          es_primera_vez: false,
+        });
+      }
 
-    // Get questions from selected category
-    const categoryQuestions = obtenerPreguntasPorCategoria(categoria, cantidad);
-    const roomQuestions = categoryQuestions.map((q, idx) => ({
-      numero: idx + 1,
-      texto: q.texto,
-      alternativa_a: q.alternativas[0],
-      alternativa_b: q.alternativas[1],
-      alternativa_c: q.alternativas[2],
-      alternativa_d: q.alternativas[3],
-      respuesta_correcta: q.correcta,
-      asignada_a: null,
-    }));
+      // Get questions from selected category
+      const categoryQuestions = obtenerPreguntasPorCategoria(categoria, cantidad);
+      const roomQuestions = categoryQuestions.map((q, idx) => ({
+        numero: idx + 1,
+        texto: q.texto,
+        alternativa_a: q.alternativas[0],
+        alternativa_b: q.alternativas[1],
+        alternativa_c: q.alternativas[2],
+        alternativa_d: q.alternativas[3],
+        respuesta_correcta: q.correcta,
+        asignada_a: null,
+      }));
 
-    // Memory Store path (always available and instant)
-    if (isUsingMemory()) {
+
       let codigo;
       let attempts = 0;
       while (attempts < 100) {
-        codigo = generateCode();
-        const existing = memoryStore.salas.find(s => s.codigo === codigo && (s.estado === 'esperando' || s.estado === 'jugando'));
+        codigo = reservedCode || generateCode();
+        const existing = store.salas.find(s => s.codigo === codigo && (s.estado === 'esperando' || s.estado === 'jugando'));
         if (!existing) break;
         attempts++;
       }
 
-      const salaId = memoryStore.salaIdCounter++;
+      const salaId = store.salaIdCounter++;
       const sala = {
         id: salaId,
         codigo,
@@ -72,10 +73,10 @@ export async function POST(request) {
         tiempo_fin: null,
         indice_pregunta: 0,
       };
-      memoryStore.salas.push(sala);
+      store.salas.push(sala);
 
       // Add creator as player with resolved name and photo
-      memoryStore.salaJugadores.push({
+      store.salaJugadores.push({
         sala_id: salaId,
         usuario_id: userId,
         nombre: resolvedName,
@@ -86,7 +87,7 @@ export async function POST(request) {
 
       // Save questions with room
       roomQuestions.forEach(q => {
-        memoryStore.preguntas.push({
+        store.preguntas.push({
           sala_id: salaId,
           ...q,
         });
@@ -102,67 +103,6 @@ export async function POST(request) {
           creadorNombre: resolvedName,
         },
       });
-    }
-
-    // PostgreSQL path (if PostgreSQL is running)
-    let codigo = generateCode();
-    const result = await query(
-      `INSERT INTO salas (codigo, creador_id, cantidad_preguntas, estado) 
-       VALUES ($1, $2, $3, 'esperando') RETURNING id, codigo, cantidad_preguntas`,
-      [codigo, userId, cantidad]
-    );
-
-    if (result && result.rows && result.rows.length > 0) {
-      const sala = result.rows[0];
-
-      await query(
-        `INSERT INTO sala_jugadores (sala_id, usuario_id, turno_pregunta) VALUES ($1, $2, 1)`,
-        [sala.id, userId]
-      );
-
-      return NextResponse.json({
-        sala: {
-          id: sala.id,
-          codigo: sala.codigo,
-          cantidadPreguntas: sala.cantidad_preguntas,
-          categoria,
-          creadorId: userId,
-          creadorNombre: resolvedName,
-        },
-      });
-    }
-
-    // Fallback if Postgres query returned empty
-    const salaId = memoryStore.salaIdCounter++;
-    const sala = {
-      id: salaId,
-      codigo,
-      creador_id: userId,
-      creador_nombre: resolvedName,
-      cantidad_preguntas: cantidad,
-      categoria,
-      estado: 'esperando',
-      turno_actual: userId,
-    };
-    memoryStore.salas.push(sala);
-    memoryStore.salaJugadores.push({
-      sala_id: salaId,
-      usuario_id: userId,
-      nombre: resolvedName,
-      foto: userFoto || null,
-      turno_pregunta: 1,
-      cartas: { sol: 0, rio: 0, montana: 0 },
-    });
-
-    return NextResponse.json({
-      sala: {
-        id: salaId,
-        codigo,
-        cantidadPreguntas: cantidad,
-        categoria,
-        creadorId: userId,
-        creadorNombre: resolvedName,
-      },
     });
   } catch (err) {
     console.error("Error creando sala:", err);
