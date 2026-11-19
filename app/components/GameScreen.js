@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { primerNombre } from "../lib/primerNombre";
 import CuyDorado from "./CuyDorado";
 
 export default function GameScreen({ user, sala, onBackToMenu }) {
@@ -32,6 +33,22 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
 
   // Global game over state
   const [winner, setWinner] = useState(null);
+  const victoryAudio = useRef(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const winnerId = winner?.id;
+  useEffect(() => {
+    setAudioBlocked(false);
+    if (!winnerId || winnerId !== user.id) return;
+    const audio = new Audio("/musica/ganador.mp3");
+    victoryAudio.current = audio;
+    let active = true;
+    audio.play().catch(() => { if (active) setAudioBlocked(true); });
+    return () => {
+      active = false;
+      audio.pause();
+      victoryAudio.current = null;
+    };
+  }, [winnerId, user.id]);
   const [endCountdown, setEndCountdown] = useState(30);
 
   // Error toast
@@ -533,7 +550,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
           <div style={{ marginTop: "14px", display: "flex", justifyContent: "center", gap: "10px", flexWrap: "wrap" }}>
             {turnOrder.map((player, index) => (
               <span key={player.id} className="lobby-room-badge">
-                Turno {index + 1}: {player.id === user.id ? "Tú" : player.nombre}
+                Turno {index + 1}: {player.id === user.id ? "Tú" : primerNombre(player.nombre)}
               </span>
             ))}
           </div>
@@ -547,7 +564,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
   // RENDER: PHASE 3 (Main Game Board)
   // --------------------------------------------------------------------------
   const currentTurnPlayer = players.find((p) => p.id === roomState.turnoActual);
-  const currentTurnName = currentTurnPlayer ? currentTurnPlayer.nombre.split(" ")[0] : "Explorador";
+  const currentTurnName = currentTurnPlayer ? primerNombre(currentTurnPlayer.nombre) : "Explorador";
 
   return (
     <div className="screen-wrapper fade-in">
@@ -586,7 +603,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
             <span className="alert-siren">🚨</span>
             <div className="steal-alert-text">
               <strong>¡ALERTA EN LA SALA!</strong>
-              <p>{stealAlertActive.mensaje}</p>
+              <p>{primerNombre(stealAlertActive.ladronNombre)} va a robar una carta.</p>
             </div>
           </div>
         )}
@@ -596,7 +613,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
           <div className="other-answering-banner fade-in">
             <div className="answering-tag">
               <span>📜</span>
-              <span>{otherPlayerAnswering.jugadorNombre} está respondiendo:</span>
+              <span>{primerNombre(otherPlayerAnswering.jugadorNombre)} está respondiendo:</span>
             </div>
             <p className="other-question-text">"{otherPlayerAnswering.texto}"</p>
             <span className="alternatives-hidden-tag">
@@ -615,7 +632,12 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
             </div>
             <div className="winner-crown-icon">👑</div>
             <h1 className="winner-headline">¡TENEMOS UN GANADOR!</h1>
-            <p className="winner-player-name">{winner.nombre}</p>
+            <p className="winner-player-name">{primerNombre(winner.nombre)}</p>
+            {audioBlocked && winnerId === user.id && (
+              <button type="button" className="secondary-back-btn" onClick={() =>
+                victoryAudio.current?.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true))
+              }>Escuchar canción de victoria</button>
+            )}
             <p className="winner-lore">
               Ha conseguido la sagrada tríada andina: <strong>Sol ☀️, Río 🌊 y Montaña ⛰️</strong>
             </p>
@@ -658,7 +680,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
             const isTurn = roomState.turnoActual === p.id;
             const isMe = p.id === user.id;
             const rawName = (isMe && user.name) ? user.name : (p.nombre || "Explorador");
-            const firstName = rawName.split(" ")[0];
+            const firstName = primerNombre(rawName);
             const displayPhoto = (isMe && user.picture) ? user.picture : p.foto;
             const cartas = p.cartas || { sol: 0, rio: 0, montana: 0 };
 
@@ -668,7 +690,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
                 className={`player-circle-item ${isTurn ? "item-active-turn" : ""} ${isMe ? "item-is-me" : ""}`}
               >
                 {/* Player Name ON TOP of circle as requested */}
-                <span className="player-roster-name" title={rawName}>
+                <span className="player-roster-name" title={firstName}>
                   {firstName} {isMe ? "(Tú)" : ""}
                 </span>
 
@@ -678,7 +700,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
                     <img
                       className="player-circle-avatar"
                       src={displayPhoto}
-                      alt={rawName}
+                      alt={firstName}
                       referrerPolicy="no-referrer"
                     />
                   ) : (
@@ -903,7 +925,7 @@ export default function GameScreen({ user, sala, onBackToMenu }) {
                         className={`victim-item-card ${!hasCards ? "victim-no-cards" : ""}`}
                       >
                         <div className="victim-item-info">
-                          <span className="victim-name">{p.nombre}</span>
+                          <span className="victim-name">{primerNombre(p.nombre)}</span>
                           <span className="victim-cards-count">
                             {hasCards
                               ? `Tiene: ${cartas.sol > 0 ? `☀️ Sol(${cartas.sol}) ` : ""}${cartas.rio > 0 ? `🌊 Río(${cartas.rio}) ` : ""}${cartas.montana > 0 ? `⛰️ Montaña(${cartas.montana})` : ""}`

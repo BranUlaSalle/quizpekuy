@@ -3,7 +3,7 @@ import { pool, memoryStore } from "./db";
 let schemaReady;
 export async function withRoom({ id, code, create, readOnly }, apply) {
   if (!pool) {
-    if (process.env.NODE_ENV === "production") throw new Error("DATABASE_URL requerida");
+    if (process.env.NODE_ENV === "production") throw new Error("Configura DATABASE_URL o DATABASE_QUIZPEKUY en producción");
     const response = apply(memoryStore);
     if (!readOnly && response.ok) {
       const room = memoryStore.salas.find(r => r.id === id || r.codigo === code);

@@ -7,7 +7,7 @@ const ALLOWED_DOMAIN = process.env.NEXT_PUBLIC_ALLOWED_DOMAIN || "ulasalle.edu.p
 
 export async function POST(request) {
   try {
-    const { email, password, action } = await request.json();
+    const { email, password, action, username } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "Correo y contraseña son requeridos" }, { status: 400 });
@@ -23,6 +23,10 @@ export async function POST(request) {
     }
 
     if (action === "register") {
+      const name = typeof username === "string" ? username.trim() : "";
+      if (!name || name.length > 255) {
+        return NextResponse.json({ error: "Ingresa un nombre de usuario de hasta 255 caracteres" }, { status: 400 });
+      }
       // Check existing in memory
       const existingMem = memoryStore.usuarios.find(u => u.email === emailLower);
       if (existingMem) {
@@ -46,8 +50,19 @@ export async function POST(request) {
 
       const passwordHash = await bcrypt.hash(password, 10);
       const id = "email_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
-      const rawName = emailLower.split("@")[0].replace(/[._-]/g, " ");
-      const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+      // Save to Postgres
+      if (!isUsingMemory()) {
+        try {
+          await query(
+            `INSERT INTO usuarios (id_usuario, nombre, email, password_hash, auth_provider, es_primera_vez, fecha_registro, fecha_ultimo_login) 
+             VALUES ($1, $2, $3, $4, 'email', FALSE, NOW(), NOW())`,
+            [id, name, emailLower, passwordHash]
+          );
+        } catch (e) {
+          if (e.code === "23505") return NextResponse.json({ error: "Correo ya registrado" }, { status: 409 });
+          throw e;
+        }
+      }
 
       // Save to memory
       memoryStore.usuarios.push({
@@ -59,19 +74,6 @@ export async function POST(request) {
         auth_provider: 'email',
         es_primera_vez: false,
       });
-
-      // Save to Postgres
-      if (!isUsingMemory()) {
-        try {
-          await query(
-            `INSERT INTO usuarios (id_usuario, nombre, email, password_hash, auth_provider, es_primera_vez, fecha_registro, fecha_ultimo_login) 
-             VALUES ($1, $2, $3, $4, 'email', FALSE, NOW(), NOW())`,
-            [id, name, emailLower, passwordHash]
-          );
-        } catch (e) {
-          console.error("Nota DB:", e.message);
-        }
-      }
 
       // Guardar en usuarios.sql y usuarios.log
       guardarEnSqlYLog({

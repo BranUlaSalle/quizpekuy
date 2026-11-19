@@ -11,6 +11,7 @@ function escapeSql(value) {
 }
 
 export function guardarEnSqlYLog({ id, name, email, picture, provider = 'google', esPrimeraVez = false }) {
+  if (process.env.VERCEL === "1") return;
   try {
     const timestamp = new Date().toISOString();
 
@@ -84,8 +85,9 @@ function cargarUsuariosDesdeSql() {
   return usuarios;
 }
 
-export const pool = process.env.DATABASE_URL ? new Pool({
-  connectionString: process.env.DATABASE_URL,
+const connectionString = process.env.DATABASE_URL?.trim() || process.env.DATABASE_QUIZPEKUY?.trim();
+export const pool = connectionString ? new Pool({
+  connectionString,
   connectionTimeoutMillis: 10000,
 }) : null;
 const useMemory = !pool;

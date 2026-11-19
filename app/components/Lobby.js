@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { primerNombre } from "../lib/primerNombre";
 import CuyDorado from "./CuyDorado";
 
 const CATEGORIAS_MAP = {
@@ -144,7 +145,7 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
               ? "Esperando que se una al menos 1 jugador más para poder iniciar la partida..."
             : isCreator
               ? "Asigna el orden tocando Turno junto a cada jugador."
-              : `Esperando que el anfitrión (${roomInfo.creadorNombre || "el anfitrión"}) inicie la partida...`}
+              : `Esperando que el anfitrión (${primerNombre(roomInfo.creadorNombre)}) inicie la partida...`}
           </span>
         </div>
 
@@ -157,13 +158,13 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
 
             if (player) {
               if (player.id === user.id && user.name) {
-                displayName = user.name;
+                displayName = primerNombre(user.name);
                 displayPhoto = user.picture || player.foto;
               } else if (player.nombre && !player.nombre.startsWith("Jugador ")) {
-                displayName = player.nombre;
+                displayName = primerNombre(player.nombre);
                 displayPhoto = player.foto;
               } else {
-                displayName = player.nombre || `Jugador ${slotNumber}`;
+                displayName = player.nombre?.startsWith("Jugador ") ? `Jugador ${slotNumber}` : primerNombre(player.nombre) || `Jugador ${slotNumber}`;
                 displayPhoto = player.foto;
               }
             }
@@ -272,7 +273,7 @@ export default function Lobby({ user, sala, onStartGame, onBack }) {
               <span className="waiting-host-crown">👑</span>
               <div className="waiting-host-texts">
                 <strong>Esperando al anfitrión de la sala</strong>
-                <p>Solo la persona que creó la sala ({roomInfo.creadorNombre || "el anfitrión"}) puede iniciar la partida.</p>
+                <p>Solo la persona que creó la sala ({primerNombre(roomInfo.creadorNombre)}) puede iniciar la partida.</p>
               </div>
             </div>
           )}

@@ -10,6 +10,7 @@ export default function LoginCard({ onLoginSuccess }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("login"); // "login" or "register"
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [verifiedState, setVerifiedState] = useState(false);
@@ -95,6 +96,7 @@ export default function LoginCard({ onLoginSuccess }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          username: mode === "register" ? username.trim() : undefined,
           email: cleanEmail,
           password,
           action: mode === "register" ? "register" : "login",
@@ -203,6 +205,13 @@ export default function LoginCard({ onLoginSuccess }) {
 
         {/* Email & Password Form */}
         <form onSubmit={handleEmailSubmit} className="login-form">
+          {mode === "register" && (
+            <div className="login-input-group">
+              <input type="text" className="login-input" aria-label="Nombre de usuario"
+                placeholder="Nombre de usuario" autoComplete="nickname" maxLength={255}
+                value={username} onChange={(e) => setUsername(e.target.value)} required />
+            </div>
+          )}
           <div className="login-input-group">
             <span className="login-input-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
